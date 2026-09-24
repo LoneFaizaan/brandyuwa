@@ -1,173 +1,69 @@
-import React, { useState } from 'react';
-import { Product, ProductSize } from '../../types';
+import React from 'react';
+import { Heart } from 'lucide-react';
+import type { Product } from '../../types';
 import { useStore } from '../../context/StoreContext';
+import { Link } from '../../lib/router';
+import { discountPercent, formatPrice, totalStock } from '../../lib/format';
+import { ProductImage } from '../common/ProductImage';
 
-interface ProductCardProps {
-  product: Product;
-}
+export const PRODUCT_GRID = 'grid grid-cols-2 gap-x-3 gap-y-7 sm:grid-cols-3 sm:gap-x-5 lg:grid-cols-4';
 
-export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
-  const { 
-    setSelectedProductId, 
-    setStorefrontPage, 
-    toggleWishlist, 
-    isInWishlist, 
-    addToCart 
-  } = useStore();
-
-  const isLiked = isInWishlist(product.id);
-  const [selectedColorIndex, setSelectedColorIndex] = useState(0);
-
-  const handleCardClick = () => {
-    setSelectedProductId(product.id);
-    setStorefrontPage('product');
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
-
-  const handleQuickAdd = (e: React.MouseEvent, size: ProductSize) => {
-    e.stopPropagation();
-    addToCart(product, size, product.colors[selectedColorIndex], 1);
-  };
+export const ProductCard: React.FC<{ product: Product; eager?: boolean }> = ({ product, eager }) => {
+  const { isSaved, toggleSaved } = useStore();
+  const saved = isSaved(product.id);
+  const soldOut = totalStock(product) === 0;
+  const off = discountPercent(product);
 
   return (
-    <div className="group bg-surface-container-lowest border border-border rounded-xs overflow-hidden flex flex-col transition-all duration-200 hover:shadow-md">
-      {/* Image & Badges */}
-      <div 
-        onClick={handleCardClick}
-        className="relative aspect-[3/4] bg-surface-container overflow-hidden cursor-pointer"
-      >
-        <img
-          src={product.image}
-          alt={product.name}
-          className="w-full h-full object-cover object-top transition duration-500 group-hover:scale-105"
-        />
-
-        {/* Top Badges */}
-        <div className="absolute top-2.5 left-2.5 flex flex-col space-y-1">
-          {product.isNew && (
-            <span className="bg-primary text-surface text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
-              New
-            </span>
-          )}
-          {product.discountPercent > 0 && (
-            <span className="bg-error-sale text-surface text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
-              -{product.discountPercent}%
-            </span>
-          )}
-        </div>
-
-        {/* Wishlist Button */}
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            toggleWishlist(product.id);
-          }}
-          className="absolute top-2.5 right-2.5 w-8 h-8 rounded-full bg-white/90 backdrop-blur-sm flex items-center justify-center text-text-primary hover:text-error-sale shadow-sm transition active:scale-90"
-        >
-          <span 
-            className={`material-symbols-outlined text-[18px] ${isLiked ? 'text-error-sale fill' : 'text-text-primary'}`}
-          >
-            favorite
-          </span>
-        </button>
-
-        {/* Quick Add Overlay on Hover (Desktop) */}
-        <div className="hidden sm:flex absolute inset-x-0 bottom-0 bg-surface/95 backdrop-blur-sm border-t border-border p-2 translate-y-full group-hover:translate-y-0 transition-transform duration-200 justify-between items-center">
-          <span className="text-[10px] font-bold uppercase tracking-wider text-text-muted">
-            Quick Add:
-          </span>
-          <div className="flex space-x-1">
-            {product.sizes.map((s) => (
-              <button
-                key={s.size}
-                disabled={s.stock === 0}
-                onClick={(e) => handleQuickAdd(e, s.size)}
-                className={`text-[10px] font-bold px-1.5 py-0.5 border rounded-xs transition ${
-                  s.stock === 0
-                    ? 'border-border text-border line-through cursor-not-allowed'
-                    : 'border-border bg-surface-container-lowest hover:bg-primary hover:text-surface text-text-primary'
-                }`}
-                title={s.stock === 0 ? 'Out of stock' : `Add size ${s.size}`}
-              >
-                {s.size}
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* Product Information */}
-      <div className="p-3 flex-1 flex flex-col justify-between">
-        <div>
-          {/* Category & Color Swatches */}
-          <div className="flex items-center justify-between text-[11px] text-text-muted mb-1">
-            <span className="uppercase tracking-wider font-semibold">{product.category}</span>
-            <div className="flex items-center space-x-1">
-              {product.colors.map((color, idx) => (
-                <button
-                  key={color.name}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setSelectedColorIndex(idx);
-                  }}
-                  className={`w-2.5 h-2.5 rounded-full border ${
-                    selectedColorIndex === idx ? 'border-primary ring-1 ring-primary' : 'border-neutral-300'
-                  }`}
-                  style={{ backgroundColor: color.hex }}
-                  title={color.name}
-                />
-              ))}
-            </div>
-          </div>
-
-          {/* Title */}
-          <h3 
-            onClick={handleCardClick}
-            className="font-medium text-xs sm:text-sm text-text-primary line-clamp-1 cursor-pointer hover:underline"
-          >
-            {product.name}
-          </h3>
-        </div>
-
-        {/* Pricing Lockup */}
-        <div className="mt-2 pt-2 border-t border-border flex items-baseline justify-between">
-          <div className="flex items-baseline space-x-2">
-            <span className="font-bold text-xs sm:text-sm text-text-primary tabular-nums">
-              ₹{product.price.toLocaleString('en-IN')}
-            </span>
-            {product.originalPrice > product.price && (
-              <span className="text-[11px] text-text-muted line-through tabular-nums">
-                ₹{product.originalPrice.toLocaleString('en-IN')}
-              </span>
+    <div className="group relative">
+      <Link to={`/product/${product.id}`} className="block rounded-xl">
+        <div className="relative aspect-[3/4] overflow-hidden rounded-xl bg-soft">
+          <ProductImage
+            src={product.images[0]}
+            alt={product.name}
+            eager={eager}
+            className={`h-full w-full transition-transform duration-300 group-hover:scale-[1.03] ${soldOut ? 'opacity-60' : ''}`}
+          />
+          <div className="absolute left-2 top-2 flex flex-col items-start gap-1">
+            {soldOut ? (
+              <span className="badge bg-canvas text-ink">Sold out</span>
+            ) : (
+              <>
+                {off > 0 && <span className="badge bg-sale text-white">−{off}%</span>}
+                {product.isNew && <span className="badge bg-canvas text-ink">New</span>}
+              </>
             )}
           </div>
-          <span className="text-[10px] text-text-muted font-medium flex items-center space-x-0.5">
-            <span className="material-symbols-outlined text-[13px] text-amber-500 fill">star</span>
-            <span>{product.rating}</span>
-          </span>
         </div>
-
-        {/* Mobile Quick Add Size Row */}
-        <div className="sm:hidden mt-2 pt-2 border-t border-border/60 flex items-center justify-between">
-          <span className="text-[9px] uppercase tracking-wider text-text-muted font-semibold">Sizes:</span>
-          <div className="flex space-x-1">
-            {product.sizes.slice(0, 4).map((s) => (
-              <button
-                key={s.size}
-                disabled={s.stock === 0}
-                onClick={(e) => handleQuickAdd(e, s.size)}
-                className={`text-[9px] font-bold px-1.5 py-0.5 border rounded-xs ${
-                  s.stock === 0
-                    ? 'border-border text-border line-through'
-                    : 'border-border bg-surface-container-low text-text-primary active:bg-primary active:text-surface'
-                }`}
-              >
-                {s.size}
-              </button>
-            ))}
-          </div>
+        <div className="mt-2.5 px-0.5">
+          <h3 className="line-clamp-2 text-[15px] font-medium leading-snug text-ink">{product.name}</h3>
+          <p className="mt-1 flex flex-wrap items-baseline gap-x-2">
+            <span className="tabular text-[15px] font-semibold">{formatPrice(product.price)}</span>
+            {off > 0 && <span className="tabular text-sm text-muted line-through">{formatPrice(product.mrp!)}</span>}
+          </p>
+          {product.colors.length > 1 && <p className="mt-0.5 text-sm text-muted">{product.colors.length} colours</p>}
         </div>
-      </div>
+      </Link>
+      <button
+        type="button"
+        onClick={() => toggleSaved(product.id)}
+        aria-pressed={saved}
+        aria-label={saved ? `Remove ${product.name} from saved` : `Save ${product.name}`}
+        className="absolute right-1.5 top-1.5 flex h-10 w-10 items-center justify-center rounded-full bg-canvas/90 text-ink shadow-sm backdrop-blur transition active:scale-90"
+      >
+        <Heart size={19} strokeWidth={2} className={saved ? 'animate-pop fill-sale text-sale' : ''} />
+      </button>
     </div>
   );
 };
+
+/** Horizontally scrolling row of products (swipe on phones). */
+export const ProductRail: React.FC<{ products: Product[] }> = ({ products }) => (
+  <div className="no-scrollbar -mx-4 flex snap-x snap-mandatory scroll-px-4 gap-3 overflow-x-auto px-4 pb-1 sm:-mx-6 sm:scroll-px-6 sm:gap-5 sm:px-6">
+    {products.map((p) => (
+      <div key={p.id} className="w-[44%] shrink-0 snap-start sm:w-[30%] lg:w-[calc(25%-15px)]">
+        <ProductCard product={p} />
+      </div>
+    ))}
+  </div>
+);

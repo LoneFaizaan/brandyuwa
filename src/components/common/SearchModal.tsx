@@ -1,161 +1,177 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { ArrowRight, Clock, Search, X } from 'lucide-react';
 import { useStore } from '../../context/StoreContext';
+import { useRouter } from '../../lib/router';
+import { KEYS, load, remove, save } from '../../lib/storage';
+import { formatPrice } from '../../lib/format';
+import { CATEGORY_NAMES } from '../../data/catalog';
+import type { Product } from '../../types';
+import { Modal } from './Modal';
+import { ProductImage } from './ProductImage';
 
-const POPULAR_SEARCHES = ['Heavy Twill Overshirt', 'Oxford Shirt', 'Selvedge Denim', 'Bomber', 'Trousers'];
+/** Every word typed must appear in the name, category, colour or description. */
+export function searchProducts(products: Product[], term: string) {
+  const words = term.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return [];
+  return products.filter((p) => {
+    const haystack = [p.name, p.category, p.description, p.fabric ?? '', ...p.colors.map((c) => c.name)].join(' ').toLowerCase();
+    return words.every((w) => haystack.includes(w));
+  });
+}
 
 export const SearchModal: React.FC = () => {
-  const { 
-    isSearchOpen, 
-    setIsSearchOpen, 
-    products, 
-    setSelectedProductId, 
-    setStorefrontPage 
-  } = useStore();
-
+  const { isSearchOpen, setSearchOpen, liveProducts } = useStore();
+  const { navigate } = useRouter();
   const [term, setTerm] = useState('');
+  const [recent, setRecent] = useState<string[]>(() => load<string[]>(KEYS.recentSearches) ?? []);
 
-  if (!isSearchOpen) return null;
+  const results = useMemo(() => searchProducts(liveProducts, term), [liveProducts, term]);
+  const categories = useMemo(
+    () => CATEGORY_NAMES.filter((c) => liveProducts.some((p) => p.category === c)),
+    [liveProducts],
+  );
 
-  const filtered = term.trim() === '' 
-    ? [] 
-    : products.filter(p => 
-        p.name.toLowerCase().includes(term.toLowerCase()) || 
-        p.category.toLowerCase().includes(term.toLowerCase()) ||
-        p.description.toLowerCase().includes(term.toLowerCase())
-      );
+  useEffect(() => {
+    if (isSearchOpen) setTerm('');
+  }, [isSearchOpen]);
+
+  const close = () => setSearchOpen(false);
+
+  const remember = (value: string) => {
+    const v = value.trim();
+    if (!v) return;
+    const next = [v, ...recent.filter((r) => r.toLowerCase() !== v.toLowerCase())].slice(0, 6);
+    setRecent(next);
+    save(KEYS.recentSearches, next);
+  };
+
+  const go = (to: string) => {
+    close();
+    navigate(to);
+  };
+
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!term.trim()) return;
+    remember(term);
+    go(`/shop?q=${encodeURIComponent(term.trim())}`);
+  };
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-black/50 backdrop-blur-sm p-4 sm:p-6 md:p-20 flex justify-center items-start">
-      <div className="w-full max-w-2xl bg-surface border border-border shadow-2xl rounded-sm overflow-hidden flex flex-col max-h-[85vh]">
-        
-        {/* Search Input Bar */}
-        <div className="p-4 border-b border-border bg-surface-container-lowest flex items-center space-x-3">
-          <span className="material-symbols-outlined text-[22px] text-text-muted">search</span>
+    <Modal open={isSearchOpen} onClose={close} title="Search" tall wide>
+      <div className="sticky top-0 z-10 border-b border-line bg-canvas p-4">
+        <form onSubmit={submit} role="search" className="relative">
+          <Search size={20} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-muted" />
           <input
             type="search"
             autoFocus
-            placeholder="Search Atelier collection (e.g. Oxford, Selvedge, Overshirt)..."
+            enterKeyHint="search"
             value={term}
             onChange={(e) => setTerm(e.target.value)}
-            className="flex-1 bg-transparent border-none text-sm text-text-primary placeholder:text-text-muted focus:outline-none"
+            placeholder="Shirts, jeans, black t-shirt…"
+            className="field pl-12 pr-12 [&::-webkit-search-cancel-button]:hidden"
+            aria-label="Search products"
           />
           {term && (
-            <button onClick={() => setTerm('')} className="p-1 text-text-muted hover:text-text-primary">
-              <span className="material-symbols-outlined text-[18px]">close</span>
+            <button
+              type="button"
+              onClick={() => setTerm('')}
+              className="absolute right-1 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full text-muted hover:text-ink"
+              aria-label="Clear search"
+            >
+              <X size={18} />
             </button>
           )}
-          <button 
-            onClick={() => setIsSearchOpen(false)}
-            className="text-xs font-semibold uppercase tracking-wider text-secondary hover:text-text-primary px-2 py-1"
-          >
-            Esc
-          </button>
-        </div>
-
-        {/* Modal Body */}
-        <div className="p-4 overflow-y-auto space-y-4">
-          {/* Popular searches suggestions */}
-          {term.trim() === '' && (
-            <div className="space-y-3">
-              <h4 className="text-[11px] font-bold uppercase tracking-wider text-text-muted">
-                Popular Searches
-              </h4>
-              <div className="flex flex-wrap gap-2">
-                {POPULAR_SEARCHES.map(tag => (
-                  <button
-                    key={tag}
-                    onClick={() => setTerm(tag)}
-                    className="text-xs bg-surface-container-low hover:bg-surface-container border border-border px-3 py-1.5 rounded-full text-text-primary transition"
-                  >
-                    {tag}
-                  </button>
-                ))}
-              </div>
-
-              <div className="pt-4 border-t border-border">
-                <h4 className="text-[11px] font-bold uppercase tracking-wider text-text-muted mb-3">
-                  Featured Items
-                </h4>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                  {products.slice(0, 3).map(p => (
-                    <button
-                      key={p.id}
-                      onClick={() => {
-                        setSelectedProductId(p.id);
-                        setStorefrontPage('product');
-                        setIsSearchOpen(false);
-                      }}
-                      className="text-left group"
-                    >
-                      <div className="aspect-[3/4] bg-surface-container overflow-hidden rounded-xs">
-                        <img 
-                          src={p.image} 
-                          alt={p.name} 
-                          className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
-                        />
-                      </div>
-                      <p className="text-xs font-semibold text-text-primary mt-1.5 line-clamp-1">{p.name}</p>
-                      <p className="text-[11px] font-bold text-text-primary tabular-nums">₹{p.price.toLocaleString('en-IN')}</p>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Results list */}
-          {term.trim() !== '' && (
-            <div>
-              <div className="flex justify-between items-center mb-3">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-text-muted">
-                  Results ({filtered.length})
-                </span>
-              </div>
-
-              {filtered.length === 0 ? (
-                <div className="text-center py-12 space-y-2">
-                  <span className="material-symbols-outlined text-3xl text-text-muted">search_off</span>
-                  <p className="text-sm font-medium text-text-primary">No pieces found matching "{term}"</p>
-                  <p className="text-xs text-text-muted">Try checking for spelling or searching for generic categories like Shirts, Jackets, or Denim.</p>
-                </div>
-              ) : (
-                <div className="divide-y divide-border">
-                  {filtered.map(item => (
-                    <button
-                      key={item.id}
-                      onClick={() => {
-                        setSelectedProductId(item.id);
-                        setStorefrontPage('product');
-                        setIsSearchOpen(false);
-                      }}
-                      className="w-full py-3 flex items-center space-x-3 text-left hover:bg-surface-container-low px-2 transition rounded-xs"
-                    >
-                      <img 
-                        src={item.image} 
-                        alt={item.name}
-                        className="w-12 h-16 object-cover rounded-xs bg-surface-container shrink-0" 
-                      />
-                      <div className="flex-1 min-w-0">
-                        <span className="text-[10px] uppercase tracking-wider font-semibold text-text-muted block">
-                          {item.category}
-                        </span>
-                        <h4 className="text-xs font-bold text-text-primary truncate">{item.name}</h4>
-                        <div className="flex items-center space-x-2 mt-0.5">
-                          <span className="text-xs font-bold text-text-primary tabular-nums">₹{item.price.toLocaleString('en-IN')}</span>
-                          {item.originalPrice > item.price && (
-                            <span className="text-[10px] text-text-muted line-through tabular-nums">₹{item.originalPrice.toLocaleString('en-IN')}</span>
-                          )}
-                        </div>
-                      </div>
-                      <span className="material-symbols-outlined text-[18px] text-text-muted">arrow_forward</span>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-        </div>
+        </form>
       </div>
-    </div>
+
+      <div className="p-4">
+        {!term.trim() ? (
+          <div className="space-y-6">
+            {recent.length > 0 && (
+              <section>
+                <div className="mb-2 flex items-center justify-between">
+                  <h3 className="text-sm font-semibold text-muted">Recent searches</h3>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setRecent([]);
+                      remove(KEYS.recentSearches);
+                    }}
+                    className="rounded-lg px-2 py-1 text-sm font-medium text-muted hover:text-ink"
+                  >
+                    Clear
+                  </button>
+                </div>
+                <ul>
+                  {recent.map((r) => (
+                    <li key={r}>
+                      <button
+                        type="button"
+                        onClick={() => setTerm(r)}
+                        className="flex w-full items-center gap-3 rounded-xl px-2 py-3 text-left text-[15px] hover:bg-soft"
+                      >
+                        <Clock size={18} className="text-faint" />
+                        {r}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
+            {categories.length > 0 && (
+              <section>
+                <h3 className="mb-3 text-sm font-semibold text-muted">Browse categories</h3>
+                <div className="flex flex-wrap gap-2">
+                  {categories.map((c) => (
+                    <button key={c} type="button" onClick={() => go(`/shop?cat=${encodeURIComponent(c)}`)} className="chip">
+                      {c}
+                    </button>
+                  ))}
+                </div>
+              </section>
+            )}
+          </div>
+        ) : results.length === 0 ? (
+          <div className="py-12 text-center">
+            <p className="text-[15px] font-medium">Nothing found for “{term.trim()}”</p>
+            <p className="mt-1 text-sm text-muted">Try a simpler word like “shirt” or “jeans”.</p>
+          </div>
+        ) : (
+          <>
+            <p className="mb-2 text-sm text-muted">
+              {results.length} {results.length === 1 ? 'result' : 'results'}
+            </p>
+            <ul className="divide-y divide-line">
+              {results.slice(0, 12).map((p) => (
+                <li key={p.id}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      remember(term);
+                      go(`/product/${p.id}`);
+                    }}
+                    className="flex w-full items-center gap-3 py-3 text-left"
+                  >
+                    <ProductImage src={p.images[0]} alt="" className="h-16 w-12 shrink-0 rounded-lg" />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-[15px] font-medium">{p.name}</span>
+                      <span className="text-sm text-muted">{p.category}</span>
+                    </span>
+                    <span className="tabular shrink-0 text-[15px] font-semibold">{formatPrice(p.price)}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+            {results.length > 12 && (
+              <button type="button" onClick={submit} className="btn btn-secondary mt-4 w-full">
+                See all {results.length} results
+                <ArrowRight size={18} />
+              </button>
+            )}
+          </>
+        )}
+      </div>
+    </Modal>
   );
 };

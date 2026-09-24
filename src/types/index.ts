@@ -1,106 +1,103 @@
-export type ProductSize = 'XS' | 'S' | 'M' | 'L' | 'XL' | 'XXL' | '3XL';
-
 export interface ProductColor {
   name: string;
   hex: string;
+  /** Photos (from the product's images) shown when this colour is picked */
+  images?: string[];
+  /** Older single-photo field, still read for saved products */
+  image?: string;
 }
 
+export const colorImages = (c: ProductColor): string[] => c.images ?? (c.image ? [c.image] : []);
+
 export interface SizeStock {
-  size: ProductSize;
+  size: string;
   stock: number;
 }
 
 export interface Product {
   id: string;
   name: string;
-  category: 'Shirts' | 'T-Shirts' | 'Jeans' | 'Trousers' | 'Jackets' | 'Overshirts';
-  sku: string;
+  category: string;
   price: number;
-  originalPrice: number;
-  discountPercent: number;
-  rating: number;
-  reviewCount: number;
-  image: string;
-  gallery: string[];
+  /** Printed price (MRP). Only shown when higher than `price`. */
+  mrp?: number;
+  /** First image is the cover photo. */
+  images: string[];
   description: string;
-  fabric: string;
-  fit: string;
-  care: string;
+  fabric?: string;
   colors: ProductColor[];
   sizes: SizeStock[];
-  totalStock: number;
   isNew?: boolean;
-  isBestseller?: boolean;
-  status: 'Published' | 'Draft' | 'Archived';
-  salesCount: number;
+  isFeatured?: boolean;
+  /** Hidden products are only visible in the staff area. */
+  published: boolean;
+  createdAt: string;
 }
 
-export interface CartItem {
-  product: Product;
-  selectedColor: ProductColor;
-  selectedSize: ProductSize;
+/** What is stored for each line in the bag. Product details are looked up live. */
+export interface CartLine {
+  productId: string;
+  size: string;
+  color?: string;
   quantity: number;
 }
 
-export interface ShippingAddress {
-  fullName: string;
-  phone: string;
-  addressLine: string;
+export interface CartItem extends CartLine {
+  key: string;
+  product: Product;
+  /** Units available for this size right now */
+  available: number;
+}
+
+export interface Address {
+  line1: string;
+  landmark?: string;
   city: string;
   state: string;
   pincode: string;
-  type: 'Home' | 'Work';
 }
 
-export interface OrderTimelineStep {
-  status: string;
-  label: string;
-  timestamp: string;
-  completed: boolean;
-  current: boolean;
+export interface CustomerDetails {
+  name: string;
+  phone: string;
+  address?: Address;
+}
+
+export type Fulfilment = 'delivery' | 'pickup';
+export type PaymentMethod = 'cod' | 'upi' | 'store';
+export type OrderStatus = 'new' | 'packed' | 'shipped' | 'delivered' | 'cancelled';
+
+export interface OrderItem {
+  productId: string;
+  name: string;
+  image?: string;
+  price: number;
+  size: string;
+  color?: string;
+  quantity: number;
 }
 
 export interface Order {
   id: string;
-  customerName: string;
-  email: string;
-  phone: string;
-  shippingAddress: ShippingAddress;
-  items: CartItem[];
+  createdAt: string;
+  customer: { name: string; phone: string };
+  fulfilment: Fulfilment;
+  address?: Address;
+  items: OrderItem[];
   subtotal: number;
   discount: number;
-  shippingFee: number;
+  couponCode?: string;
+  deliveryFee: number;
   total: number;
-  paymentMethod: 'UPI' | 'Card' | 'Net Banking' | 'COD';
-  paymentStatus: 'Paid' | 'Pending';
-  status: 'Pending' | 'Packed' | 'Shipped' | 'Delivered' | 'Cancelled';
-  createdAt: string;
-  timeline: OrderTimelineStep[];
+  payment: PaymentMethod;
+  paid: boolean;
+  status: OrderStatus;
+  history: { status: OrderStatus; at: string }[];
+  note?: string;
 }
 
 export interface Coupon {
   code: string;
-  discountPercent: number;
-  minOrderValue: number;
-  description: string;
-  isActive: boolean;
+  percentOff: number;
+  minOrder: number;
 }
-
-export type ViewMode = 'storefront' | 'admin';
-
-export type StorefrontPage = 
-  | 'home'
-  | 'shop'
-  | 'product'
-  | 'cart'
-  | 'checkout'
-  | 'order-success'
-  | 'order-tracking'
-  | 'account';
-
-export type AdminPage = 
-  | 'dashboard'
-  | 'orders'
-  | 'products'
-  | 'inventory'
-  | 'analytics';

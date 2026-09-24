@@ -3,15 +3,185 @@
 @tailwind utilities;
 
 @layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    -webkit-tap-highlight-color: transparent;
+  }
+
   body {
-    background-color: #f9f9f7;
-    color: #0A0A0A;
-    font-family: 'Inter', sans-serif;
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
+    @apply bg-canvas font-sans text-base text-ink antialiased;
+    font-feature-settings: 'cv11', 'ss01';
+    text-rendering: optimizeLegibility;
+  }
+
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
+  }
+
+  :focus-visible {
+    outline: 2px solid #111111;
+    outline-offset: 2px;
+  }
+
+  button,
+  a,
+  input,
+  select,
+  textarea,
+  label {
+    touch-action: manipulation;
+  }
+
+  /* Hide number spinners — the app uses its own steppers */
+  input[type='number']::-webkit-outer-spin-button,
+  input[type='number']::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  input[type='number'] {
+    -moz-appearance: textfield;
+  }
+
+  summary::-webkit-details-marker {
+    display: none;
   }
 }
 
-.tabular-nums {
-  font-variant-numeric: tabular-nums;
+@layer components {
+  .page {
+    @apply mx-auto w-full max-w-page px-4 sm:px-6;
+  }
+
+  /* Buttons — 48px tall by default so they are easy to tap */
+  .btn {
+    @apply inline-flex h-12 select-none items-center justify-center gap-2 whitespace-nowrap rounded-xl px-5 text-[15px] font-semibold transition-colors active:scale-[0.98] disabled:pointer-events-none disabled:opacity-40;
+  }
+  .btn-sm {
+    @apply h-10 rounded-lg px-4 text-sm;
+  }
+  .btn-primary {
+    @apply bg-ink text-white hover:bg-ink-2;
+  }
+  .btn-secondary {
+    @apply border border-line-strong bg-canvas text-ink hover:bg-soft;
+  }
+  .btn-ghost {
+    @apply text-ink hover:bg-soft;
+  }
+  .btn-whatsapp {
+    @apply bg-whatsapp text-white hover:brightness-110;
+  }
+  .btn-danger {
+    @apply border border-sale/30 bg-canvas text-sale hover:bg-sale-soft;
+  }
+
+  .icon-btn {
+    @apply inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-ink transition-colors hover:bg-soft active:scale-95;
+  }
+
+  /* Form fields — 16px text stops iOS from zooming in on focus */
+  .field {
+    @apply block h-12 w-full rounded-xl border border-line-strong bg-canvas px-4 text-base text-ink outline-none transition-colors placeholder:text-faint focus:border-ink focus:ring-2 focus:ring-ink/10;
+  }
+  .field-error {
+    @apply border-sale focus:border-sale focus:ring-sale/10;
+  }
+  textarea.field {
+    @apply h-auto py-3 leading-relaxed;
+  }
+  select.field {
+    @apply appearance-none bg-no-repeat pr-10;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23666' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+    background-position: right 14px center;
+  }
+  .label {
+    @apply mb-1.5 block text-sm font-medium text-ink;
+  }
+  .hint {
+    @apply mt-1.5 text-sm text-muted;
+  }
+  .error-text {
+    @apply mt-1.5 text-sm font-medium text-sale;
+  }
+
+  .card {
+    @apply rounded-2xl border border-line bg-canvas;
+  }
+
+  .chip {
+    @apply inline-flex h-10 shrink-0 select-none items-center gap-1.5 whitespace-nowrap rounded-full border border-line-strong bg-canvas px-4 text-sm font-medium text-ink transition-colors hover:bg-soft;
+  }
+  .chip-active {
+    @apply border-ink bg-ink text-white hover:bg-ink;
+  }
+
+  .badge {
+    @apply inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-semibold;
+  }
+
+  .section-title {
+    @apply text-xl font-semibold tracking-tight text-ink sm:text-2xl;
+  }
+
+  .link {
+    @apply font-medium text-ink underline decoration-line-strong underline-offset-4 hover:decoration-ink;
+  }
+}
+
+@layer utilities {
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  /* Space so page content never hides behind the fixed bottom bar */
+  .pb-bar {
+    padding-bottom: calc(5.5rem + env(safe-area-inset-bottom, 0px));
+  }
+}
+
+/* Print only the receipt (the dialog is rendered straight into <body>) */
+@media print {
+  body.printing-receipt {
+    overflow: visible !important;
+  }
+  body.printing-receipt > *:not(.modal-root),
+  body.printing-receipt .modal-backdrop,
+  body.printing-receipt .modal-header {
+    display: none !important;
+  }
+  body.printing-receipt .modal-root,
+  body.printing-receipt .modal-panel,
+  body.printing-receipt #receipt-sheet {
+    position: static !important;
+    display: block !important;
+    max-width: none !important;
+    max-height: none !important;
+    height: auto !important;
+    overflow: visible !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    animation: none !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

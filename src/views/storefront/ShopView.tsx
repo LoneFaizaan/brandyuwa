@@ -1,123 +1,122 @@
-import React, { useState, useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
+import { SlidersHorizontal, X } from 'lucide-react';
 import { useStore } from '../../context/StoreContext';
-import { ProductCard } from '../../components/storefront/ProductCard';
+import { useRouter } from '../../lib/router';
+import { usePageTitle } from '../../lib/hooks';
+import { formatPrice } from '../../lib/format';
+import { CATEGORY_NAMES } from '../../data/catalog';
+import { PRODUCT_GRID, ProductCard } from '../../components/storefront/ProductCard';
+import { FilterSheet } from '../../components/storefront/FilterSheet';
+import { EmptyState } from '../../components/common/EmptyState';
+import {
+  applyFilters,
+  extraFilterCount,
+  filtersToQuery,
+  readFilters,
+  ShopFilters,
+  SORT_LABELS,
+} from '../../components/storefront/filters';
 
 export const ShopView: React.FC = () => {
-  const { 
-    products, 
-    selectedCategory, 
-    setSelectedCategory, 
-    setStorefrontPage 
-  } = useStore();
+  const { liveProducts } = useStore();
+  const { query, navigate } = useRouter();
+  const [filterOpen, setFilterOpen] = useState(false);
 
-  const [sortBy, setSortBy] = useState<'recommended' | 'price-asc' | 'price-desc' | 'rating'>('recommended');
-  const [inStockOnly, setInStockOnly] = useState(false);
+  const filters = useMemo(() => readFilters(query), [query]);
+  const results = useMemo(() => applyFilters(liveProducts, filters), [liveProducts, filters]);
+  const categories = useMemo(() => CATEGORY_NAMES.filter((c) => liveProducts.some((p) => p.category === c)), [liveProducts]);
 
-  // Filter products by category and stock
-  const filteredProducts = useMemo(() => {
-    return products.filter(p => {
-      const matchCategory = selectedCategory === 'All Items' || p.category === selectedCategory;
-      const matchStock = inStockOnly ? p.totalStock > 0 : true;
-      return matchCategory && matchStock;
-    }).sort((a, b) => {
-      if (sortBy === 'price-asc') return a.price - b.price;
-      if (sortBy === 'price-desc') return b.price - a.price;
-      if (sortBy === 'rating') return b.rating - a.rating;
-      return 0; // recommended
-    });
-  }, [products, selectedCategory, inStockOnly, sortBy]);
+  const title = filters.q ? `Results for “${filters.q}”` : filters.category || 'All products';
+  usePageTitle(filters.q ? `Search: ${filters.q}` : filters.category || 'Shop');
+
+  const update = (patch: Partial<ShopFilters>) => navigate(filtersToQuery({ ...filters, ...patch }), { replace: true });
+  const extra = extraFilterCount(filters);
+
+  const activePills = [
+    filters.q && { label: `“${filters.q}”`, clear: () => update({ q: '' }) },
+    filters.size && { label: `Size ${filters.size}`, clear: () => update({ size: '' }) },
+    filters.maxPrice && { label: `Under ${formatPrice(filters.maxPrice)}`, clear: () => update({ maxPrice: 0 }) },
+    filters.inStock && { label: 'In stock', clear: () => update({ inStock: false }) },
+    filters.sort !== 'featured' && { label: SORT_LABELS[filters.sort], clear: () => update({ sort: 'featured' }) },
+  ].filter(Boolean) as { label: string; clear: () => void }[];
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-6 space-y-6">
-      {/* Breadcrumbs */}
-      <nav className="flex items-center space-x-2 text-[11px] text-text-muted">
-        <button 
-          onClick={() => setStorefrontPage('home')}
-          className="hover:text-text-primary uppercase tracking-wider"
-        >
-          Home
-        </button>
-        <span>/</span>
-        <button 
-          onClick={() => setSelectedCategory('All Items')}
-          className="hover:text-text-primary uppercase tracking-wider"
-        >
-          Shop
-        </button>
-        {selectedCategory !== 'All Items' && (
-          <>
-            <span>/</span>
-            <span className="text-text-primary font-bold uppercase tracking-wider">
-              {selectedCategory}
-            </span>
-          </>
-        )}
-      </nav>
-
-      {/* Header & Result Count */}
-      <div className="flex flex-col sm:flex-row sm:items-end justify-between border-b border-border pb-4 gap-4">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-bold uppercase tracking-tight text-text-primary">
-            {selectedCategory}
-          </h1>
-          <p className="text-xs text-secondary mt-1">
-            Displaying {filteredProducts.length} architectural menswear pieces
-          </p>
-        </div>
-
-        {/* Sort and Filters */}
-        <div className="flex flex-wrap items-center gap-3 text-xs">
-          {/* In-Stock Toggle */}
-          <label className="flex items-center space-x-2 cursor-pointer bg-surface-container-low border border-border px-3 py-1.5 rounded-full">
-            <input 
-              type="checkbox" 
-              checked={inStockOnly} 
-              onChange={(e) => setInStockOnly(e.target.checked)}
-              className="rounded border-border text-primary focus:ring-0 w-3.5 h-3.5"
-            />
-            <span className="text-text-primary font-medium">In Stock Only</span>
-          </label>
-
-          {/* Sort Dropdown */}
-          <div className="flex items-center space-x-1.5 bg-surface-container-low border border-border px-3 py-1.5 rounded-full">
-            <span className="text-text-muted">Sort:</span>
-            <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value as any)}
-              className="bg-transparent text-text-primary font-medium focus:outline-none cursor-pointer"
+    <div className="animate-fade-in pb-6">
+      {/* Category chips stay visible under the header while scrolling */}
+      <div className="sticky top-14 z-30 border-b border-line bg-canvas/95 backdrop-blur-md">
+        <div className="page no-scrollbar flex gap-2 overflow-x-auto py-3">
+          <button
+            type="button"
+            onClick={() => update({ category: '', size: '' })}
+            aria-pressed={!filters.category}
+            className={`chip ${!filters.category ? 'chip-active' : ''}`}
+          >
+            All
+          </button>
+          {categories.map((c) => (
+            <button
+              key={c}
+              type="button"
+              onClick={() => update({ category: c, size: '' })}
+              aria-pressed={filters.category === c}
+              className={`chip ${filters.category === c ? 'chip-active' : ''}`}
             >
-              <option value="recommended">Recommended</option>
-              <option value="price-asc">Price: Low to High</option>
-              <option value="price-desc">Price: High to Low</option>
-              <option value="rating">Highest Rated</option>
-            </select>
-          </div>
+              {c}
+            </button>
+          ))}
         </div>
       </div>
 
-      {/* Products Grid */}
-      {filteredProducts.length === 0 ? (
-        <div className="text-center py-20 space-y-3 bg-surface-container-low border border-border rounded-xs">
-          <span className="material-symbols-outlined text-4xl text-text-muted">checkroom</span>
-          <h3 className="text-base font-bold text-text-primary">No pieces found in this category</h3>
-          <p className="text-xs text-secondary">Try switching category or clearing the in-stock filter.</p>
-          <button
-            onClick={() => {
-              setSelectedCategory('All Items');
-              setInStockOnly(false);
-            }}
-            className="bg-primary text-surface text-xs font-semibold px-4 py-2 rounded-full uppercase tracking-wider"
-          >
-            Show All Items
+      <div className="page pt-5">
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <h1 className="truncate text-2xl font-bold tracking-tight">{title}</h1>
+            <p className="text-sm text-muted">
+              {results.length} {results.length === 1 ? 'item' : 'items'}
+            </p>
+          </div>
+          <button type="button" onClick={() => setFilterOpen(true)} className="btn btn-secondary btn-sm shrink-0">
+            <SlidersHorizontal size={17} />
+            Filter
+            {extra > 0 && (
+              <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-ink px-1 text-xs text-white">{extra}</span>
+            )}
           </button>
         </div>
-      ) : (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-5">
-          {filteredProducts.map((product) => (
-            <ProductCard key={product.id} product={product} />
-          ))}
+
+        {activePills.length > 0 && (
+          <div className="mt-3 flex flex-wrap gap-2">
+            {activePills.map((pill) => (
+              <button key={pill.label} type="button" onClick={pill.clear} className="chip h-9 bg-soft pr-3" aria-label={`Remove filter ${pill.label}`}>
+                {pill.label}
+                <X size={15} />
+              </button>
+            ))}
+          </div>
+        )}
+
+        <div className="mt-6">
+          {results.length === 0 ? (
+            <EmptyState
+              title="No matching products"
+              description="Try another category or remove some filters."
+              action={
+                <button type="button" onClick={() => navigate('/shop', { replace: true })} className="btn btn-primary">
+                  Show all products
+                </button>
+              }
+            />
+          ) : (
+            <div className={PRODUCT_GRID}>
+              {results.map((p, i) => (
+                <ProductCard key={p.id} product={p} eager={i < 4} />
+              ))}
+            </div>
+          )}
         </div>
-      )}
+      </div>
+
+      <FilterSheet open={filterOpen} onClose={() => setFilterOpen(false)} products={liveProducts} filters={filters} onApply={update} />
     </div>
   );
 };

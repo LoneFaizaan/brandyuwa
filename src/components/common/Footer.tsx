@@ -1,148 +1,93 @@
-import React, { useState } from 'react';
-import { useStore } from '../../context/StoreContext';
+import React from 'react';
+import { Link } from '../../lib/router';
+import { STORE_CONFIG, STORE_PHONE_DISPLAY, STORE_TEL, whatsappLink } from '../../data/storeConfig';
+import { OPENING_HOURS } from '../../lib/hooks';
+import { FacebookIcon, InstagramIcon, WhatsAppIcon } from './SocialIcons';
+import { Logo } from './Logo';
+
+const SHOP_LINKS = [
+  { label: 'All products', to: '/shop' },
+  { label: 'Saved items', to: '/saved' },
+  { label: 'My orders', to: '/orders' },
+  { label: 'Bag', to: '/cart' },
+];
+
+const HELP_LINKS = [
+  { label: 'Contact & visit', to: '/contact' },
+  { label: 'Delivery', to: '/shipping' },
+  { label: 'Exchanges & returns', to: '/returns' },
+  { label: 'FAQ', to: '/faq' },
+  { label: 'About us', to: '/about' },
+];
 
 export const Footer: React.FC = () => {
-  const { setSelectedCategory, setStorefrontPage, showToast } = useStore();
-  const [email, setEmail] = useState('');
-
-  const handleSubscribe = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (email.trim()) {
-      showToast('Thank you for joining the Atelier Gazette', 'success');
-      setEmail('');
-    }
-  };
+  const { address, socials } = STORE_CONFIG;
+  const social = 'icon-btn border border-line-strong bg-canvas';
 
   return (
-    <footer className="bg-surface border-t border-border mt-16 text-text-primary">
-      {/* Trust & Guarantee Bar */}
-      <div className="border-b border-border py-8 px-4 bg-surface-container-low">
-        <div className="max-w-6xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-6">
-          <div className="flex items-center space-x-3">
-            <span className="material-symbols-outlined text-2xl text-primary">local_shipping</span>
-            <div>
-              <h4 className="text-xs font-bold uppercase tracking-wider">Free Express Delivery</h4>
-              <p className="text-[11px] text-secondary">Complimentary on all orders above ₹999</p>
-            </div>
-          </div>
-          <div className="flex items-center space-x-3">
-            <span className="material-symbols-outlined text-2xl text-primary">swap_horiz</span>
-            <div>
-              <h4 className="text-xs font-bold uppercase tracking-wider">14-Day Return Window</h4>
-              <p className="text-[11px] text-secondary">Simple doorstep pickup & full refunds</p>
-            </div>
-          </div>
-          <div className="flex items-center space-x-3">
-            <span className="material-symbols-outlined text-2xl text-primary">verified</span>
-            <div>
-              <h4 className="text-xs font-bold uppercase tracking-wider">Tactile Honesty</h4>
-              <p className="text-[11px] text-secondary">Heavyweight Japanese twills & Giza cottons</p>
-            </div>
-          </div>
-          <div className="flex items-center space-x-3">
-            <span className="material-symbols-outlined text-2xl text-primary">shield</span>
-            <div>
-              <h4 className="text-xs font-bold uppercase tracking-wider">Encrypted Commerce</h4>
-              <p className="text-[11px] text-secondary">UPI, Cards, and Net Banking protected</p>
-            </div>
+    <footer className="border-t border-line bg-soft">
+      <div className="page grid gap-8 py-10 sm:grid-cols-2 md:grid-cols-4">
+        <div className="space-y-4 sm:col-span-2">
+          <Logo />
+          <p className="max-w-sm text-[15px] leading-relaxed text-muted">
+            {address.line1}, {address.locality}, {address.city} {address.pincode}
+            <br />
+            {OPENING_HOURS} · {STORE_CONFIG.hours.days}
+            <br />
+            <a href={STORE_TEL} className="link">
+              {STORE_PHONE_DISPLAY}
+            </a>
+          </p>
+          <div className="flex gap-2">
+            <a href={socials.instagram.url} target="_blank" rel="noreferrer" className={social} aria-label="Instagram">
+              <InstagramIcon size={20} />
+            </a>
+            <a href={socials.facebook.url} target="_blank" rel="noreferrer" className={social} aria-label="Facebook">
+              <FacebookIcon size={20} />
+            </a>
+            <a href={whatsappLink()} target="_blank" rel="noreferrer" className={social} aria-label="WhatsApp">
+              <WhatsAppIcon size={20} />
+            </a>
           </div>
         </div>
+
+        <FooterLinks title="Shop" links={SHOP_LINKS} />
+        <FooterLinks title="Help" links={HELP_LINKS} />
       </div>
 
-      {/* Main Footer Links */}
-      <div className="max-w-6xl mx-auto px-4 py-12 grid grid-cols-1 md:grid-cols-12 gap-8">
-        {/* Brand statement */}
-        <div className="md:col-span-4 space-y-3">
-          <span className="font-bold text-base tracking-widest uppercase">ATELIER RETAIL</span>
-          <p className="text-xs text-secondary leading-relaxed">
-            Disciplined modern menswear grounded in structured minimalism, Swiss modernism, and tactile material integrity. Every garment is cut for architectural proportion and everyday durability.
+      <div className="border-t border-line">
+        <div className="page flex flex-wrap items-center justify-between gap-x-4 gap-y-2 py-5 text-sm text-muted">
+          <p>
+            © {new Date().getFullYear()} {STORE_CONFIG.name}
           </p>
-          <p className="text-[11px] text-text-muted">
-            Designed in Bengaluru & Tokyo. Manufactured with certified ethical mill partners.
-          </p>
-        </div>
-
-        {/* Categories */}
-        <div className="md:col-span-2 space-y-2.5">
-          <h4 className="text-xs font-bold uppercase tracking-wider text-text-primary">Collections</h4>
-          <ul className="space-y-1.5 text-xs text-secondary">
-            {['Overshirts', 'Shirts', 'T-Shirts', 'Jeans', 'Trousers', 'Jackets'].map(cat => (
-              <li key={cat}>
-                <button 
-                  onClick={() => {
-                    setSelectedCategory(cat);
-                    setStorefrontPage('shop');
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                  }}
-                  className="hover:text-text-primary transition-colors"
-                >
-                  {cat}
-                </button>
-              </li>
-            ))}
-          </ul>
-        </div>
-
-        {/* Client Care */}
-        <div className="md:col-span-2 space-y-2.5">
-          <h4 className="text-xs font-bold uppercase tracking-wider text-text-primary">Client Care</h4>
-          <ul className="space-y-1.5 text-xs text-secondary">
-            <li>
-              <button 
-                onClick={() => {
-                  setStorefrontPage('order-tracking');
-                  window.scrollTo({ top: 0, behavior: 'smooth' });
-                }}
-                className="hover:text-text-primary transition-colors"
-              >
-                Track Your Order
-              </button>
-            </li>
-            <li><span className="text-secondary/70">Shipping & Delivery</span></li>
-            <li><span className="text-secondary/70">Returns & Exchanges</span></li>
-            <li><span className="text-secondary/70">Size Guide & Fit Matrix</span></li>
-            <li><span className="text-secondary/70">Contact Concierge</span></li>
-          </ul>
-        </div>
-
-        {/* Newsletter Signup */}
-        <div className="md:col-span-4 space-y-3">
-          <h4 className="text-xs font-bold uppercase tracking-wider text-text-primary">The Atelier Gazette</h4>
-          <p className="text-xs text-secondary">
-            Receive private release notices for limited seasonal fabric drops and archival restocks. No marketing spam.
-          </p>
-          <form onSubmit={handleSubscribe} className="flex space-x-2">
-            <input 
-              type="email" 
-              required
-              placeholder="Enter your email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="flex-1 bg-surface-container-lowest border border-border px-3 py-2 text-xs focus:outline-none focus:border-primary"
-            />
-            <button 
-              type="submit"
-              className="bg-primary text-surface px-4 py-2 text-xs font-bold uppercase tracking-wider rounded-sm hover:bg-neutral-800 transition"
-            >
-              Join
-            </button>
-          </form>
-        </div>
-      </div>
-
-      {/* Copyright Bar */}
-      <div className="border-t border-border py-6 px-4 bg-surface-container-lowest">
-        <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between text-[11px] text-text-muted space-y-2 sm:space-y-0">
-          <p>© 2026 Atelier Architectural Menswear Platform. All rights reserved.</p>
-          <div className="flex items-center space-x-4">
-            <span>Privacy Policy</span>
-            <span>•</span>
-            <span>Terms of Service</span>
-            <span>•</span>
-            <span>Made with Stitch Design System</span>
+          <div className="flex gap-4">
+            <Link to="/privacy" className="hover:text-ink">
+              Privacy
+            </Link>
+            <Link to="/terms" className="hover:text-ink">
+              Terms
+            </Link>
+            <Link to="/admin" className="hover:text-ink">
+              Staff login
+            </Link>
           </div>
         </div>
       </div>
     </footer>
   );
 };
+
+const FooterLinks: React.FC<{ title: string; links: { label: string; to: string }[] }> = ({ title, links }) => (
+  <div>
+    <h2 className="text-sm font-semibold uppercase tracking-wide text-muted">{title}</h2>
+    <ul className="mt-3 space-y-1">
+      {links.map((l) => (
+        <li key={l.to}>
+          <Link to={l.to} className="inline-block py-1.5 text-[15px] text-ink hover:underline">
+            {l.label}
+          </Link>
+        </li>
+      ))}
+    </ul>
+  </div>
+);

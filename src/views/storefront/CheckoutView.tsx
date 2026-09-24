@@ -1,581 +1,439 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
+import { ChevronLeft, Info, MapPin } from 'lucide-react';
+import type { Fulfilment, PaymentMethod } from '../../types';
 import { useStore } from '../../context/StoreContext';
-import { ShippingAddress } from '../../types';
-import { DEFAULT_SHIPPING_ADDRESS } from '../../data/mockData';
+import { Link, useRouter } from '../../lib/router';
+import { usePageTitle } from '../../lib/hooks';
+import { cleanPhone, formatPrice, isValidPhone, plural } from '../../lib/format';
+import { calcTotals } from '../../lib/pricing';
+import { orderWhatsAppLink } from '../../lib/orderMessages';
+import { STORE_CONFIG } from '../../data/storeConfig';
+import { INDIAN_STATES } from '../../data/indianStates';
+import { EmptyState } from '../../components/common/EmptyState';
+import { ProductImage } from '../../components/common/ProductImage';
+import { WhatsAppIcon } from '../../components/common/SocialIcons';
+
+type Field = 'name' | 'phone' | 'line1' | 'city' | 'pincode' | 'state';
 
 export const CheckoutView: React.FC = () => {
-  const { 
-    cart, 
-    cartSubtotal, 
-    cartDiscount, 
-    cartShipping, 
-    cartTotal, 
-    activeCoupon,
-    applyCoupon,
-    removeCoupon,
-    placeOrder, 
-    setStorefrontPage,
-    setSelectedOrderId,
-    showToast 
-  } = useStore();
+  usePageTitle('Checkout');
+  const { cart, cartCount, cartSubtotal, coupon, placeOrder, savedCustomer } = useStore();
+  const { navigate } = useRouter();
+  const placing = useRef(false);
 
-  // Checkout form states
-  const [customerName, setCustomerName] = useState('Aarav Sharma');
-  const [email, setEmail] = useState('aarav.s@gmail.com');
-  const [phone, setPhone] = useState('+91 98450 12345');
-  
-  const [addresses, setAddresses] = useState<ShippingAddress[]>([
-    DEFAULT_SHIPPING_ADDRESS,
-    {
-      fullName: 'Aarav Sharma',
-      phone: '+91 98450 12345',
-      addressLine: 'Atelier Architecture Studio, 12th Main Road, HAL 2nd Stage',
-      city: 'Bengaluru',
-      state: 'Karnataka',
-      pincode: '560008',
-      type: 'Work'
-    }
-  ]);
-  const [selectedAddressIndex, setSelectedAddressIndex] = useState(0);
-  const [showNewAddressForm, setShowNewAddressForm] = useState(false);
+  const saved = savedCustomer?.address;
+  const [fulfilment, setFulfilment] = useState<Fulfilment>('delivery');
+  const [name, setName] = useState(savedCustomer?.name ?? '');
+  const [phone, setPhone] = useState(savedCustomer?.phone ?? '');
+  const [line1, setLine1] = useState(saved?.line1 ?? '');
+  const [landmark, setLandmark] = useState(saved?.landmark ?? '');
+  const [city, setCity] = useState(saved?.city ?? '');
+  const [pincode, setPincode] = useState(saved?.pincode ?? '');
+  const [state, setState] = useState(saved?.state ?? STORE_CONFIG.address.state);
+  const [note, setNote] = useState('');
+  const [errors, setErrors] = useState<Partial<Record<Field, string>>>({});
 
-  // New address form state
-  const [newFullName, setNewFullName] = useState('');
-  const [newPhone, setNewPhone] = useState('');
-  const [newAddressLine, setNewAddressLine] = useState('');
-  const [newCity, setNewCity] = useState('');
-  const [newState, setNewState] = useState('');
-  const [newPincode, setNewPincode] = useState('');
-  const [newType, setNewType] = useState<'Home' | 'Work'>('Home');
-
-  // Delivery method
-  const [deliveryMethod, setDeliveryMethod] = useState<'standard' | 'express'>('standard');
-
-  // Payment method
-  const [paymentMethod, setPaymentMethod] = useState<'UPI' | 'Card' | 'Net Banking' | 'COD'>('UPI');
-  const [upiId, setUpiId] = useState('aaravsharma@okhdfcbank');
-  const [cardNumber, setCardNumber] = useState('4242 •••• •••• 4242');
-  const [cardExpiry, setCardExpiry] = useState('12/28');
-  const [cardCvv, setCardCvv] = useState('884');
-
-  // Coupon input
-  const [couponCode, setCouponCode] = useState('');
-
-  const handleSaveNewAddress = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newAddressLine || !newCity || !newPincode) {
-      showToast('Please fill out all address fields', 'error');
-      return;
-    }
-    const created: ShippingAddress = {
-      fullName: newFullName || customerName,
-      phone: newPhone || phone,
-      addressLine: newAddressLine,
-      city: newCity,
-      state: newState || 'Karnataka',
-      pincode: newPincode,
-      type: newType
-    };
-    setAddresses(prev => [...prev, created]);
-    setSelectedAddressIndex(addresses.length);
-    setShowNewAddressForm(false);
-    showToast('New delivery address saved', 'success');
-  };
-
-  const handleCompleteOrder = () => {
-    if (cart.length === 0) {
-      showToast('Your bag is empty', 'error');
-      setStorefrontPage('shop');
-      return;
-    }
-
-    const order = placeOrder({
-      customerName,
-      email,
-      phone,
-      shippingAddress: addresses[selectedAddressIndex],
-      paymentMethod
-    });
-
-    setSelectedOrderId(order.id);
-    setStorefrontPage('order-success');
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
+  const paymentOptions = getPaymentOptions(fulfilment);
+  const [paymentChoice, setPayment] = useState<PaymentMethod>(paymentOptions[0].value);
+  const payment = paymentOptions.some((o) => o.value === paymentChoice) ? paymentChoice : paymentOptions[0].value;
 
   if (cart.length === 0) {
+    if (placing.current) return null;
     return (
-      <div className="max-w-2xl mx-auto px-4 py-20 text-center space-y-4">
-        <span className="material-symbols-outlined text-5xl text-text-muted">shopping_bag</span>
-        <h2 className="text-xl font-bold text-text-primary uppercase">Your Bag is Empty</h2>
-        <p className="text-xs text-secondary">Select pieces from our catalog before checking out.</p>
-        <button
-          onClick={() => setStorefrontPage('shop')}
-          className="bg-primary text-surface text-xs font-bold px-6 py-2.5 rounded-full uppercase tracking-wider"
-        >
-          Return to Shop
-        </button>
+      <div className="page py-6">
+        <EmptyState
+          title="Your bag is empty"
+          description="Add something to your bag before checking out."
+          action={
+            <Link to="/shop" className="btn btn-primary">
+              Browse products
+            </Link>
+          }
+        />
       </div>
     );
   }
 
+  const totals = calcTotals(cartSubtotal, fulfilment, coupon);
+  const hasProblem = cart.some((i) => i.quantity > i.available);
+
+  const validate = () => {
+    const e: Partial<Record<Field, string>> = {};
+    if (name.trim().length < 2) e.name = 'Please enter your name';
+    if (!isValidPhone(phone)) e.phone = 'Please enter a valid 10-digit mobile number';
+    if (fulfilment === 'delivery') {
+      if (line1.trim().length < 5) e.line1 = 'Please enter your house, street and area';
+      if (!city.trim()) e.city = 'Please enter your town or city';
+      if (!/^\d{6}$/.test(pincode)) e.pincode = 'Enter the 6-digit PIN code';
+      if (!state) e.state = 'Please choose your state';
+    }
+    return e;
+  };
+
+  const submit = (ev: React.FormEvent) => {
+    ev.preventDefault();
+    const found = validate();
+    setErrors(found);
+    const first = (['name', 'phone', 'line1', 'city', 'pincode', 'state'] as Field[]).find((f) => found[f]);
+    if (first) {
+      const el = document.getElementById(`checkout-${first}`);
+      el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      el?.focus({ preventScroll: true });
+      return;
+    }
+
+    placing.current = true;
+    const order = placeOrder({
+      customer: { name: name.trim(), phone: cleanPhone(phone) },
+      fulfilment,
+      address:
+        fulfilment === 'delivery'
+          ? { line1: line1.trim(), landmark: landmark.trim() || undefined, city: city.trim(), state, pincode }
+          : undefined,
+      payment,
+      note,
+    });
+    if (!order) {
+      placing.current = false;
+      return;
+    }
+    window.open(orderWhatsAppLink(order), '_blank', 'noopener');
+    navigate(`/order-placed/${order.id}`, { replace: true });
+  };
+
+  const clearError = (field: Field) => errors[field] && setErrors((e) => ({ ...e, [field]: undefined }));
+
   return (
-    <div className="min-h-screen pb-20">
-      {/* 1. Transactional Focused Header */}
-      <header className="bg-surface border-b border-border sticky top-0 z-30">
-        <div className="max-w-5xl mx-auto px-4 h-14 flex items-center justify-between">
-          <button
-            onClick={() => setStorefrontPage('shop')}
-            className="inline-flex items-center space-x-1 text-xs font-semibold text-secondary hover:text-text-primary uppercase tracking-wider"
-          >
-            <span className="material-symbols-outlined text-[18px]">arrow_back</span>
-            <span>Bag</span>
-          </button>
-          <div className="text-center">
-            <span className="font-bold text-sm tracking-widest uppercase text-text-primary">
-              ATELIER CHECKOUT
-            </span>
-          </div>
-          <div className="flex items-center space-x-1 text-text-muted text-xs">
-            <span className="material-symbols-outlined text-[16px] text-emerald-700">lock</span>
-            <span className="hidden sm:inline">256-Bit Encrypted</span>
-          </div>
-        </div>
-      </header>
+    <div className="animate-fade-in pb-8 md:pb-10">
+      <div className="page max-w-5xl pt-4 md:pt-8">
+        <Link to="/cart" className="-ml-2 inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-sm font-medium text-muted hover:text-ink">
+          <ChevronLeft size={18} />
+          Back to bag
+        </Link>
+        <h1 className="mt-1 text-2xl font-bold tracking-tight">Checkout</h1>
 
-      {/* 2. Main Checkout Layout */}
-      <main className="max-w-5xl mx-auto px-4 py-8 grid grid-cols-1 md:grid-cols-12 gap-8">
-        {/* Left Column: 4 Checkout Steps */}
-        <div className="md:col-span-7 space-y-6">
-          <div className="bg-surface border border-border divide-y divide-border rounded-xs">
-            
-            {/* Step 1: Contact */}
-            <section className="p-4 sm:p-6 space-y-3">
-              <div className="flex items-center justify-between">
-                <h2 className="text-xs font-bold uppercase tracking-wider text-text-primary">
-                  1. Contact Information
-                </h2>
-                <span className="text-[11px] text-text-muted">Verified</span>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-                <div>
-                  <label className="text-[10px] uppercase font-bold text-text-muted block mb-1">Full Name</label>
-                  <input
-                    type="text"
-                    value={customerName}
-                    onChange={(e) => setCustomerName(e.target.value)}
-                    className="w-full h-10 px-3 border border-border bg-surface-container-lowest text-xs focus:outline-none focus:border-primary"
+        <form id="checkout-form" onSubmit={submit} noValidate className="mt-6 grid gap-8 md:grid-cols-[1fr_20rem] lg:grid-cols-[1fr_22rem]">
+          <div className="space-y-8">
+            {STORE_CONFIG.delivery.pickup && (
+              <Section title="How would you like to get it?">
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <ChoiceCard
+                    name="fulfilment"
+                    checked={fulfilment === 'delivery'}
+                    onChange={() => setFulfilment('delivery')}
+                    title="Home delivery"
+                    detail={`${calcTotals(cartSubtotal, 'delivery', null).deliveryFee === 0 ? 'Free' : formatPrice(STORE_CONFIG.delivery.fee)} · ${STORE_CONFIG.delivery.estimate}`}
+                  />
+                  <ChoiceCard
+                    name="fulfilment"
+                    checked={fulfilment === 'pickup'}
+                    onChange={() => setFulfilment('pickup')}
+                    title="Pick up from shop"
+                    detail={`Free · ${STORE_CONFIG.address.locality}, ${STORE_CONFIG.address.city}`}
                   />
                 </div>
+              </Section>
+            )}
+
+            <Section title="Your details">
+              <div className="grid gap-4 sm:grid-cols-2">
                 <div>
-                  <label className="text-[10px] uppercase font-bold text-text-muted block mb-1">Phone Number</label>
+                  <label htmlFor="checkout-name" className="label">
+                    Full name
+                  </label>
                   <input
-                    type="tel"
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    className="w-full h-10 px-3 border border-border bg-surface-container-lowest text-xs focus:outline-none focus:border-primary"
+                    id="checkout-name"
+                    value={name}
+                    onChange={(e) => {
+                      setName(e.target.value);
+                      clearError('name');
+                    }}
+                    autoComplete="name"
+                    className={`field ${errors.name ? 'field-error' : ''}`}
+                    aria-invalid={!!errors.name}
                   />
+                  {errors.name && <p className="error-text">{errors.name}</p>}
                 </div>
-              </div>
-              <div>
-                <label className="text-[10px] uppercase font-bold text-text-muted block mb-1">Email for Delivery Updates</label>
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="w-full h-10 px-3 border border-border bg-surface-container-lowest text-xs focus:outline-none focus:border-primary"
-                />
-              </div>
-            </section>
-
-            {/* Step 2: Delivery Address */}
-            <section className="p-4 sm:p-6 space-y-4">
-              <div className="flex items-center justify-between">
-                <h2 className="text-xs font-bold uppercase tracking-wider text-text-primary">
-                  2. Delivery Address
-                </h2>
-                <button
-                  type="button"
-                  onClick={() => setShowNewAddressForm(!showNewAddressForm)}
-                  className="text-xs font-semibold text-text-primary hover:underline flex items-center space-x-1"
-                >
-                  <span className="material-symbols-outlined text-[15px]">add</span>
-                  <span>Add New</span>
-                </button>
-              </div>
-
-              {/* Saved Address Radios */}
-              <div className="space-y-3">
-                {addresses.map((addr, idx) => {
-                  const isChecked = selectedAddressIndex === idx;
-                  return (
-                    <label
-                      key={idx}
-                      className={`flex items-start space-x-3 p-3.5 border rounded-xs cursor-pointer transition ${
-                        isChecked 
-                          ? 'border-primary bg-surface-container-lowest shadow-sm' 
-                          : 'border-border bg-surface hover:bg-surface-container-low'
-                      }`}
-                    >
-                      <input
-                        type="radio"
-                        name="address_choice"
-                        checked={isChecked}
-                        onChange={() => setSelectedAddressIndex(idx)}
-                        className="mt-1 text-primary focus:ring-0"
-                      />
-                      <div className="flex-1 text-xs">
-                        <div className="flex items-center justify-between">
-                          <span className="font-bold text-text-primary">
-                            {addr.fullName} <span className="font-normal text-text-muted">({addr.type})</span>
-                          </span>
-                          {isChecked && (
-                            <span className="text-[10px] uppercase font-bold text-primary bg-neutral-200 px-1.5 py-0.2 rounded-xs">
-                              Selected
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-secondary mt-1 leading-relaxed">{addr.addressLine}</p>
-                        <p className="text-secondary">{addr.city}, {addr.state} - {addr.pincode}</p>
-                        <p className="text-[11px] text-text-muted mt-1 font-mono">Mobile: {addr.phone}</p>
-                      </div>
-                    </label>
-                  );
-                })}
-              </div>
-
-              {/* Add Address Form */}
-              {showNewAddressForm && (
-                <form onSubmit={handleSaveNewAddress} className="mt-4 pt-4 border-t border-border space-y-3 bg-surface-container-low p-4 rounded-xs">
-                  <span className="text-xs font-bold uppercase tracking-wider text-text-primary block">
-                    Add New Delivery Address
-                  </span>
-                  <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label htmlFor="checkout-phone" className="label">
+                    Mobile number
+                  </label>
+                  <div className="relative">
+                    <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-base text-muted">+91</span>
                     <input
-                      type="text"
-                      placeholder="Contact Name"
-                      value={newFullName}
-                      onChange={(e) => setNewFullName(e.target.value)}
-                      className="h-9 px-3 border border-border bg-white text-xs"
-                    />
-                    <input
+                      id="checkout-phone"
                       type="tel"
-                      placeholder="10-digit mobile"
-                      value={newPhone}
-                      onChange={(e) => setNewPhone(e.target.value)}
-                      className="h-9 px-3 border border-border bg-white text-xs"
+                      inputMode="numeric"
+                      autoComplete="tel-national"
+                      value={phone}
+                      onChange={(e) => {
+                        // Allow "+91 98765 43210" and similar formats; cleaned up on submit
+                        setPhone(e.target.value.replace(/[^\d\s+-]/g, '').slice(0, 18));
+                        clearError('phone');
+                      }}
+                      className={`field pl-14 ${errors.phone ? 'field-error' : ''}`}
+                      aria-invalid={!!errors.phone}
                     />
                   </div>
-                  <input
-                    type="text"
-                    placeholder="Flat / Building / Street Address"
-                    value={newAddressLine}
-                    onChange={(e) => setNewAddressLine(e.target.value)}
-                    className="w-full h-9 px-3 border border-border bg-white text-xs"
-                  />
-                  <div className="grid grid-cols-3 gap-3">
-                    <input
-                      type="text"
-                      placeholder="City"
-                      value={newCity}
-                      onChange={(e) => setNewCity(e.target.value)}
-                      className="h-9 px-3 border border-border bg-white text-xs"
+                  {errors.phone ? <p className="error-text">{errors.phone}</p> : <p className="hint">We'll call or WhatsApp you about the order.</p>}
+                </div>
+              </div>
+            </Section>
+
+            {fulfilment === 'delivery' ? (
+              <Section title="Delivery address">
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="sm:col-span-2">
+                    <label htmlFor="checkout-line1" className="label">
+                      House no., street and area
+                    </label>
+                    <textarea
+                      id="checkout-line1"
+                      rows={2}
+                      value={line1}
+                      onChange={(e) => {
+                        setLine1(e.target.value);
+                        clearError('line1');
+                      }}
+                      autoComplete="street-address"
+                      className={`field resize-none ${errors.line1 ? 'field-error' : ''}`}
+                      aria-invalid={!!errors.line1}
                     />
+                    {errors.line1 && <p className="error-text">{errors.line1}</p>}
+                  </div>
+                  <div className="sm:col-span-2">
+                    <label htmlFor="checkout-landmark" className="label">
+                      Landmark <span className="font-normal text-muted">(optional)</span>
+                    </label>
                     <input
-                      type="text"
-                      placeholder="State"
-                      value={newState}
-                      onChange={(e) => setNewState(e.target.value)}
-                      className="h-9 px-3 border border-border bg-white text-xs"
-                    />
-                    <input
-                      type="text"
-                      placeholder="PIN Code"
-                      value={newPincode}
-                      onChange={(e) => setNewPincode(e.target.value)}
-                      className="h-9 px-3 border border-border bg-white text-xs"
+                      id="checkout-landmark"
+                      value={landmark}
+                      onChange={(e) => setLandmark(e.target.value)}
+                      placeholder="e.g. near the masjid"
+                      className="field"
                     />
                   </div>
-                  <div className="flex justify-end space-x-2 pt-2">
-                    <button
-                      type="button"
-                      onClick={() => setShowNewAddressForm(false)}
-                      className="px-3 py-1.5 text-xs text-secondary hover:text-text-primary"
+                  <div>
+                    <label htmlFor="checkout-city" className="label">
+                      Town / city
+                    </label>
+                    <input
+                      id="checkout-city"
+                      value={city}
+                      onChange={(e) => {
+                        setCity(e.target.value);
+                        clearError('city');
+                      }}
+                      autoComplete="address-level2"
+                      className={`field ${errors.city ? 'field-error' : ''}`}
+                      aria-invalid={!!errors.city}
+                    />
+                    {errors.city && <p className="error-text">{errors.city}</p>}
+                  </div>
+                  <div>
+                    <label htmlFor="checkout-pincode" className="label">
+                      PIN code
+                    </label>
+                    <input
+                      id="checkout-pincode"
+                      inputMode="numeric"
+                      autoComplete="postal-code"
+                      value={pincode}
+                      onChange={(e) => {
+                        setPincode(e.target.value.replace(/\D/g, '').slice(0, 6));
+                        clearError('pincode');
+                      }}
+                      className={`field tabular ${errors.pincode ? 'field-error' : ''}`}
+                      aria-invalid={!!errors.pincode}
+                    />
+                    {errors.pincode && <p className="error-text">{errors.pincode}</p>}
+                  </div>
+                  <div className="sm:col-span-2">
+                    <label htmlFor="checkout-state" className="label">
+                      State
+                    </label>
+                    <select
+                      id="checkout-state"
+                      value={state}
+                      onChange={(e) => {
+                        setState(e.target.value);
+                        clearError('state');
+                      }}
+                      autoComplete="address-level1"
+                      className={`field ${errors.state ? 'field-error' : ''}`}
                     >
-                      Cancel
-                    </button>
-                    <button
-                      type="submit"
-                      className="px-4 py-1.5 bg-primary text-surface text-xs font-bold uppercase rounded-xs"
-                    >
-                      Save Address
-                    </button>
+                      {INDIAN_STATES.map((s) => (
+                        <option key={s}>{s}</option>
+                      ))}
+                    </select>
                   </div>
-                </form>
-              )}
-            </section>
+                </div>
+              </Section>
+            ) : (
+              <Section title="Pickup from">
+                <div className="flex gap-3 rounded-xl bg-soft p-4 text-[15px]">
+                  <MapPin size={20} className="mt-0.5 shrink-0 text-muted" />
+                  <p className="leading-relaxed">
+                    <span className="font-semibold">{STORE_CONFIG.name}</span>
+                    <br />
+                    {STORE_CONFIG.address.line1}, {STORE_CONFIG.address.locality}, {STORE_CONFIG.address.city}
+                    <br />
+                    <span className="text-muted">We'll message you when your order is ready.</span>
+                  </p>
+                </div>
+              </Section>
+            )}
 
-            {/* Step 3: Delivery Method */}
-            <section className="p-4 sm:p-6 space-y-3">
-              <h2 className="text-xs font-bold uppercase tracking-wider text-text-primary">
-                3. Delivery Method
-              </h2>
-              <div className="space-y-2">
-                <label 
-                  onClick={() => setDeliveryMethod('standard')}
-                  className={`flex items-start space-x-3 p-3.5 border rounded-xs cursor-pointer ${
-                    deliveryMethod === 'standard' ? 'border-primary bg-surface-container-lowest' : 'border-border'
-                  }`}
-                >
-                  <input
-                    type="radio"
-                    name="delivery_method"
-                    checked={deliveryMethod === 'standard'}
-                    onChange={() => setDeliveryMethod('standard')}
-                    className="mt-1 text-primary focus:ring-0"
+            <Section title="Payment">
+              <div className="grid gap-3">
+                {paymentOptions.map((o) => (
+                  <ChoiceCard
+                    key={o.value}
+                    name="payment"
+                    checked={payment === o.value}
+                    onChange={() => setPayment(o.value)}
+                    title={o.title}
+                    detail={o.detail}
                   />
-                  <div className="flex-1 flex justify-between text-xs">
-                    <div>
-                      <p className="font-bold text-text-primary">Standard BlueDart Express (2–4 days)</p>
-                      <p className="text-secondary text-[11px] mt-0.5">Dispatched within 24 hours from Bengaluru studio</p>
-                    </div>
-                    <span className="font-bold text-emerald-700">FREE</span>
-                  </div>
-                </label>
+                ))}
               </div>
-            </section>
+            </Section>
 
-            {/* Step 4: Payment */}
-            <section className="p-4 sm:p-6 space-y-4">
-              <div className="flex items-center justify-between">
-                <h2 className="text-xs font-bold uppercase tracking-wider text-text-primary">
-                  4. Payment Method
-                </h2>
-                <span className="text-[11px] text-text-muted">Instant or COD</span>
-              </div>
-
-              <div className="space-y-3">
-                {/* UPI Option */}
-                <div className="border border-border rounded-xs overflow-hidden">
-                  <label 
-                    onClick={() => setPaymentMethod('UPI')}
-                    className={`p-3.5 flex items-center justify-between cursor-pointer ${
-                      paymentMethod === 'UPI' ? 'bg-surface-container-low font-bold' : 'bg-surface'
-                    }`}
-                  >
-                    <div className="flex items-center space-x-3">
-                      <input
-                        type="radio"
-                        name="payment_choice"
-                        checked={paymentMethod === 'UPI'}
-                        onChange={() => setPaymentMethod('UPI')}
-                        className="text-primary focus:ring-0"
-                      />
-                      <span className="text-xs text-text-primary">UPI (Google Pay, PhonePe, Paytm, QR)</span>
-                    </div>
-                    <span className="material-symbols-outlined text-secondary text-[20px]">qr_code_2</span>
-                  </label>
-                  {paymentMethod === 'UPI' && (
-                    <div className="p-4 border-t border-border bg-surface-container-lowest space-y-2">
-                      <label className="text-[10px] uppercase font-bold text-text-muted block">Enter UPI ID / VPA</label>
-                      <div className="flex space-x-2">
-                        <input
-                          type="text"
-                          value={upiId}
-                          onChange={(e) => setUpiId(e.target.value)}
-                          className="flex-1 h-10 px-3 border border-border bg-surface text-xs focus:outline-none focus:border-primary font-mono"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => showToast('UPI ID Verified', 'success')}
-                          className="px-4 h-10 bg-surface-container-low border border-border text-xs font-bold uppercase hover:bg-surface-container"
-                        >
-                          Verify
-                        </button>
-                      </div>
-                      <p className="text-[10px] text-text-muted">A payment request will be sent to your UPI app.</p>
-                    </div>
-                  )}
-                </div>
-
-                {/* Card Option */}
-                <div className="border border-border rounded-xs overflow-hidden">
-                  <label 
-                    onClick={() => setPaymentMethod('Card')}
-                    className={`p-3.5 flex items-center justify-between cursor-pointer ${
-                      paymentMethod === 'Card' ? 'bg-surface-container-low font-bold' : 'bg-surface'
-                    }`}
-                  >
-                    <div className="flex items-center space-x-3">
-                      <input
-                        type="radio"
-                        name="payment_choice"
-                        checked={paymentMethod === 'Card'}
-                        onChange={() => setPaymentMethod('Card')}
-                        className="text-primary focus:ring-0"
-                      />
-                      <span className="text-xs text-text-primary">Credit / Debit Card (Visa, Mastercard, RuPay)</span>
-                    </div>
-                    <span className="material-symbols-outlined text-secondary text-[20px]">credit_card</span>
-                  </label>
-                  {paymentMethod === 'Card' && (
-                    <div className="p-4 border-t border-border bg-surface-container-lowest space-y-3">
-                      <div>
-                        <label className="text-[10px] uppercase font-bold text-text-muted block mb-1">Card Number</label>
-                        <input
-                          type="text"
-                          value={cardNumber}
-                          onChange={(e) => setCardNumber(e.target.value)}
-                          className="w-full h-9 px-3 border border-border bg-surface text-xs font-mono"
-                        />
-                      </div>
-                      <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <label className="text-[10px] uppercase font-bold text-text-muted block mb-1">Expiry (MM/YY)</label>
-                          <input
-                            type="text"
-                            value={cardExpiry}
-                            onChange={(e) => setCardExpiry(e.target.value)}
-                            className="w-full h-9 px-3 border border-border bg-surface text-xs font-mono"
-                          />
-                        </div>
-                        <div>
-                          <label className="text-[10px] uppercase font-bold text-text-muted block mb-1">CVV</label>
-                          <input
-                            type="password"
-                            maxLength={3}
-                            value={cardCvv}
-                            onChange={(e) => setCardCvv(e.target.value)}
-                            className="w-full h-9 px-3 border border-border bg-surface text-xs font-mono"
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Cash on Delivery */}
-                <div className="border border-border rounded-xs overflow-hidden">
-                  <label 
-                    onClick={() => setPaymentMethod('COD')}
-                    className={`p-3.5 flex items-center justify-between cursor-pointer ${
-                      paymentMethod === 'COD' ? 'bg-surface-container-low font-bold' : 'bg-surface'
-                    }`}
-                  >
-                    <div className="flex items-center space-x-3">
-                      <input
-                        type="radio"
-                        name="payment_choice"
-                        checked={paymentMethod === 'COD'}
-                        onChange={() => setPaymentMethod('COD')}
-                        className="text-primary focus:ring-0"
-                      />
-                      <span className="text-xs text-text-primary">Cash on Delivery (Pay upon receipt)</span>
-                    </div>
-                    <span className="material-symbols-outlined text-secondary text-[20px]">payments</span>
-                  </label>
-                </div>
-              </div>
-            </section>
+            <div>
+              <label htmlFor="checkout-note" className="label">
+                Note for the shop <span className="font-normal text-muted">(optional)</span>
+              </label>
+              <textarea
+                id="checkout-note"
+                rows={2}
+                value={note}
+                onChange={(e) => setNote(e.target.value.slice(0, 300))}
+                placeholder="e.g. please call before delivery"
+                className="field resize-none"
+              />
+            </div>
           </div>
-        </div>
 
-        {/* Right Column: Order Summary */}
-        <div className="md:col-span-5 space-y-4">
-          <div className="bg-surface-container-lowest border border-border p-4 sm:p-6 rounded-xs space-y-4">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-text-primary border-b border-border pb-3">
-              Order Summary ({cart.length} pieces)
-            </h3>
-
-            {/* Cart Items List */}
-            <div className="divide-y divide-border max-h-60 overflow-y-auto pr-1">
-              {cart.map((item) => (
-                <div key={`${item.product.id}-${item.selectedSize}`} className="py-2.5 flex space-x-3">
-                  <img
-                    src={item.product.image}
-                    alt={item.product.name}
-                    className="w-12 h-16 object-cover rounded-xs bg-surface-container shrink-0"
-                  />
-                  <div className="flex-1 min-w-0 flex flex-col justify-between">
-                    <div>
-                      <h4 className="text-xs font-semibold text-text-primary truncate">{item.product.name}</h4>
-                      <p className="text-[10px] text-secondary">
-                        Size: {item.selectedSize} • Qty: {item.quantity}
+          {/* Summary */}
+          <aside className="md:sticky md:top-20 md:self-start">
+            <div className="card p-5">
+              <h2 className="text-[15px] font-semibold">Your order · {plural(cartCount, 'item')}</h2>
+              <ul className="mt-3 space-y-3">
+                {cart.map((i) => (
+                  <li key={i.key} className="flex gap-3">
+                    <ProductImage src={i.product.images[0]} alt="" className="h-16 w-12 shrink-0 rounded-lg" />
+                    <div className="min-w-0 flex-1 text-sm">
+                      <p className="line-clamp-2 font-medium">{i.product.name}</p>
+                      <p className="text-muted">
+                        Size {i.size}
+                        {i.color && ` · ${i.color}`} · Qty {i.quantity}
                       </p>
                     </div>
-                    <span className="text-xs font-bold tabular-nums">
-                      ₹{(item.product.price * item.quantity).toLocaleString('en-IN')}
-                    </span>
+                    <p className="tabular shrink-0 text-sm font-medium">{formatPrice(i.product.price * i.quantity)}</p>
+                  </li>
+                ))}
+              </ul>
+              <dl className="mt-4 space-y-2 border-t border-line pt-4 text-[15px]">
+                <div className="flex justify-between">
+                  <dt className="text-muted">Items</dt>
+                  <dd className="tabular">{formatPrice(totals.subtotal)}</dd>
+                </div>
+                {totals.discount > 0 && (
+                  <div className="flex justify-between text-ok">
+                    <dt>Discount ({coupon?.code})</dt>
+                    <dd className="tabular">−{formatPrice(totals.discount)}</dd>
                   </div>
+                )}
+                <div className="flex justify-between">
+                  <dt className="text-muted">{fulfilment === 'pickup' ? 'Pickup' : 'Delivery'}</dt>
+                  <dd className="tabular">{totals.deliveryFee === 0 ? 'Free' : formatPrice(totals.deliveryFee)}</dd>
                 </div>
-              ))}
-            </div>
-
-            {/* Coupon Application */}
-            <div className="pt-2 border-t border-border">
-              {activeCoupon ? (
-                <div className="flex justify-between items-center bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs p-2 rounded-xs">
-                  <span>Code <strong>{activeCoupon.code}</strong> applied</span>
-                  <button onClick={removeCoupon} className="underline text-[11px] font-bold">Remove</button>
+                <div className="flex justify-between border-t border-line pt-3 text-base font-bold">
+                  <dt>Total</dt>
+                  <dd className="tabular">{formatPrice(totals.total)}</dd>
                 </div>
-              ) : (
-                <div className="flex space-x-2">
-                  <input
-                    type="text"
-                    placeholder="Coupon Code"
-                    value={couponCode}
-                    onChange={(e) => setCouponCode(e.target.value)}
-                    className="flex-1 bg-surface-container-low border border-border px-3 py-1.5 text-xs uppercase"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (applyCoupon(couponCode)) setCouponCode('');
-                    }}
-                    className="bg-primary text-surface text-xs font-bold px-3 py-1.5 rounded-xs"
-                  >
-                    Apply
-                  </button>
-                </div>
+              </dl>
+              {hasProblem && (
+                <p className="mt-3 text-sm font-medium text-sale">
+                  Some items in your bag are no longer available.{' '}
+                  <Link to="/cart" className="underline">
+                    Update bag
+                  </Link>
+                </p>
               )}
+              <button type="submit" disabled={hasProblem} className="btn btn-whatsapp mt-5 hidden w-full md:flex">
+                <WhatsAppIcon size={18} />
+                Place order on WhatsApp
+              </button>
+              <p className="mt-3 flex gap-2 text-sm leading-relaxed text-muted">
+                <Info size={15} className="mt-0.5 shrink-0" />
+                WhatsApp will open with your order details. Tap Send there to confirm your order with us.
+              </p>
             </div>
+          </aside>
+        </form>
+      </div>
 
-            {/* Price Calculations */}
-            <div className="space-y-1.5 text-xs text-secondary pt-3 border-t border-border">
-              <div className="flex justify-between">
-                <span>Subtotal</span>
-                <span className="font-medium text-text-primary tabular-nums">₹{cartSubtotal.toLocaleString('en-IN')}</span>
-              </div>
-              {cartDiscount > 0 && (
-                <div className="flex justify-between text-error-sale">
-                  <span>Reduction</span>
-                  <span className="tabular-nums">-₹{cartDiscount.toLocaleString('en-IN')}</span>
-                </div>
-              )}
-              <div className="flex justify-between">
-                <span>Express Shipping</span>
-                <span className="text-emerald-700 font-medium">FREE</span>
-              </div>
-              <div className="flex justify-between text-sm font-bold text-text-primary pt-2 border-t border-border">
-                <span>Total Amount Due</span>
-                <span className="tabular-nums">₹{cartTotal.toLocaleString('en-IN')}</span>
-              </div>
-            </div>
-
-            {/* Submit Order Action */}
-            <button
-              onClick={handleCompleteOrder}
-              className="w-full bg-primary hover:bg-neutral-900 active:scale-[0.99] text-surface py-3.5 px-4 rounded-full font-bold text-xs uppercase tracking-wider flex items-center justify-center space-x-2 transition shadow-lg mt-2"
-            >
-              <span className="material-symbols-outlined text-[18px]">lock</span>
-              <span>Place Order • ₹{cartTotal.toLocaleString('en-IN')}</span>
-            </button>
-
-            <p className="text-[10px] text-center text-text-muted">
-              By confirming your order, you agree to Atelier Terms of Sale and Privacy Policy.
-            </p>
+      {/* Phone order bar */}
+      <div className="pb-safe fixed inset-x-0 bottom-0 z-40 border-t border-line bg-canvas md:hidden">
+        <div className="flex items-center gap-4 px-4 py-3">
+          <div className="shrink-0">
+            <p className="text-sm text-muted">Total</p>
+            <p className="tabular text-lg font-bold leading-tight">{formatPrice(totals.total)}</p>
           </div>
+          <button type="submit" form="checkout-form" disabled={hasProblem} className="btn btn-whatsapp flex-1 px-3">
+            <WhatsAppIcon size={18} />
+            Place order
+          </button>
         </div>
-      </main>
+      </div>
     </div>
   );
 };
+
+function getPaymentOptions(fulfilment: Fulfilment) {
+  const { cashOnDelivery, upiId } = STORE_CONFIG.payments;
+  const options: { value: PaymentMethod; title: string; detail: string }[] = [];
+  if (fulfilment === 'pickup') {
+    options.push({ value: 'store', title: 'Pay at the shop', detail: 'Cash or UPI when you collect' });
+  } else if (cashOnDelivery || !upiId) {
+    options.push({ value: 'cod', title: 'Cash on delivery', detail: 'Pay by cash or UPI when it arrives' });
+  }
+  if (upiId) options.push({ value: 'upi', title: 'Pay now by UPI', detail: 'GPay, PhonePe, Paytm or any UPI app' });
+  return options;
+}
+
+const Section: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
+  <section>
+    <h2 className="mb-3 text-lg font-semibold">{title}</h2>
+    {children}
+  </section>
+);
+
+interface ChoiceCardProps {
+  name: string;
+  checked: boolean;
+  onChange: () => void;
+  title: string;
+  detail: string;
+}
+
+const ChoiceCard: React.FC<ChoiceCardProps> = ({ name, checked, onChange, title, detail }) => (
+  <label
+    className={`flex cursor-pointer items-center gap-3 rounded-xl border p-4 transition-colors ${
+      checked ? 'border-ink bg-soft ring-1 ring-ink' : 'border-line-strong hover:border-ink'
+    }`}
+  >
+    <input type="radio" name={name} checked={checked} onChange={onChange} className="sr-only" />
+    <span
+      className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 ${checked ? 'border-ink' : 'border-line-strong'}`}
+      aria-hidden="true"
+    >
+      {checked && <span className="h-2.5 w-2.5 rounded-full bg-ink" />}
+    </span>
+    <span>
+      <span className="block text-[15px] font-semibold">{title}</span>
+      <span className="block text-sm text-muted">{detail}</span>
+    </span>
+  </label>
+);
