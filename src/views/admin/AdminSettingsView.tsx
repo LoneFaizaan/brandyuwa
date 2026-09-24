@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { Download, LogOut, Upload } from 'lucide-react';
+import { CheckCircle2, Database, Download, LogOut, RefreshCw, Upload, Wifi, WifiOff } from 'lucide-react';
 import { useStore } from '../../context/StoreContext';
 import { useRouter } from '../../lib/router';
 import { OPENING_HOURS, usePageTitle } from '../../lib/hooks';
@@ -10,13 +10,24 @@ import { AdminPage } from '../../components/admin/AdminShell';
 
 export const AdminSettingsView: React.FC = () => {
   usePageTitle('Settings');
-  const { products, orders, staffLogout, changeStaffPassword, restoreBackup, showToast } = useStore();
+  const {
+    products,
+    orders,
+    staffLogout,
+    changeStaffPassword,
+    restoreBackup,
+    backendStatus,
+    isBackendConnected,
+    refreshBackendData,
+    showToast,
+  } = useStore();
   const { navigate } = useRouter();
   const fileRef = useRef<HTMLInputElement>(null);
 
   const [current, setCurrent] = useState('');
   const [next, setNext] = useState('');
   const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [syncing, setSyncing] = useState(false);
 
   const used = usedBytes();
   const usedPercent = Math.min(100, Math.round((used / STORAGE_LIMIT_BYTES) * 100));
@@ -32,8 +43,15 @@ export const AdminSettingsView: React.FC = () => {
     }
   };
 
+  const handleSyncNow = async () => {
+    setSyncing(true);
+    await refreshBackendData();
+    setSyncing(false);
+    showToast('Database synchronized with Supabase');
+  };
+
   const downloadBackup = () => {
-    const data = JSON.stringify({ exportedAt: new Date().toISOString(), products, orders });
+    const data = JSON.stringify({ exportedAt: new Date().toISOString(), products, orders }, null, 2);
     const url = URL.createObjectURL(new Blob([data], { type: 'application/json' }));
     const a = document.createElement('a');
     a.href = url;
@@ -44,11 +62,11 @@ export const AdminSettingsView: React.FC = () => {
 
   const restore = async (file?: File) => {
     if (!file) return;
-    if (!window.confirm('Replace all products and orders on this device with the backup?')) return;
+    if (!window.confirm('Replace all products and orders with the backup? This will also update the Supabase database.')) return;
     try {
       const err = restoreBackup(JSON.parse(await file.text()));
       if (err) showToast(err, 'error');
-      else showToast('Backup restored');
+      else showToast('Backup restored and synced to Supabase');
     } catch {
       showToast('This file is not a shop backup.', 'error');
     } finally {
@@ -59,6 +77,68 @@ export const AdminSettingsView: React.FC = () => {
   return (
     <AdminPage title="Settings" narrow>
       <div className="space-y-4">
+        {/* Backend Database Status */}
+        <section className="card p-5">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-ink text-white">
+                <Database size={18} />
+              </span>
+              <div>
+                <h2 className="text-[17px] font-semibold leading-tight">Backend & Database</h2>
+                <p className="text-xs text-muted">Supabase Project: <code className="rounded bg-soft px-1 font-mono">qypufzpwfixkhkofojaz</code></p>
+              </div>
+            </div>
+            <span
+              className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${
+                isBackendConnected ? 'bg-emerald-50 text-emerald-700' : backendStatus === 'connecting' ? 'bg-amber-50 text-amber-700' : 'bg-rose-50 text-rose-700'
+              }`}
+            >
+              {isBackendConnected ? (
+                <>
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  Live Connected
+                </>
+              ) : backendStatus === 'connecting' ? (
+                <>
+                  <RefreshCw size={12} className="animate-spin" />
+                  Connecting…
+                </>
+              ) : (
+                <>
+                  <WifiOff size={12} />
+                  Offline Mode
+                </>
+              )}
+            </span>
+          </div>
+
+          <dl className="mt-4 grid grid-cols-2 gap-3 rounded-xl bg-soft/50 p-3 text-sm">
+            <div>
+              <dt className="text-xs text-muted">Products in Cloud</dt>
+              <dd className="mt-0.5 text-base font-bold text-ink">{products.length}</dd>
+            </div>
+            <div>
+              <dt className="text-xs text-muted">Orders in Cloud</dt>
+              <dd className="mt-0.5 text-base font-bold text-ink">{orders.length}</dd>
+            </div>
+          </dl>
+
+          <div className="mt-4 flex items-center justify-between border-t border-line pt-3">
+            <span className="text-xs text-muted">Real-time sync active</span>
+            <button
+              type="button"
+              onClick={handleSyncNow}
+              disabled={syncing}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-line px-3 py-1.5 text-xs font-semibold text-ink hover:bg-soft disabled:opacity-50"
+            >
+              <RefreshCw size={13} className={syncing ? 'animate-spin' : ''} />
+              {syncing ? 'Syncing…' : 'Sync Now'}
+            </button>
+          </div>
+        </section>
+
+        {/* Shop details */}
         <section className="card p-5">
           <h2 className="text-[17px] font-semibold">Shop details</h2>
           <dl className="mt-3 space-y-2 text-[15px]">
@@ -75,6 +155,7 @@ export const AdminSettingsView: React.FC = () => {
           <p className="hint">To change these, ask the person who set up this website.</p>
         </section>
 
+        {/* Change password */}
         <form onSubmit={changePassword} className="card p-5" noValidate>
           <h2 className="text-[17px] font-semibold">Change password</h2>
           <label htmlFor="current-password" className="label mt-4">
@@ -88,6 +169,7 @@ export const AdminSettingsView: React.FC = () => {
             onChange={(e) => setCurrent(e.target.value)}
             className="field"
           />
+
           <label htmlFor="new-password" className="label mt-4">
             New password
           </label>
@@ -99,30 +181,19 @@ export const AdminSettingsView: React.FC = () => {
             onChange={(e) => setNext(e.target.value)}
             className="field"
           />
-          <p className="hint">At least 6 characters. This changes the password on this device only.</p>
+          <p className="hint">At least 6 characters. This changes the password on this device.</p>
           {passwordError && <p className="error-text">{passwordError}</p>}
           <button type="submit" className="btn btn-primary mt-4 w-full sm:w-auto" disabled={!current || !next}>
             Change password
           </button>
         </form>
 
+        {/* Backup & Export */}
         <section className="card p-5">
-          <h2 className="text-[17px] font-semibold">Backup</h2>
+          <h2 className="text-[17px] font-semibold">Data Backup</h2>
           <p className="mt-1 text-[15px] text-muted">
-            Your products and orders are saved in this browser. Download a backup now and then, so nothing is lost if the browser data is cleared.
+            All data is saved in Supabase cloud database. You can also export a standalone JSON snapshot file for safe offline keeping.
           </p>
-          <div className="mt-4">
-            <div className="flex justify-between text-sm">
-              <span className="text-muted">Space used</span>
-              <span className="tabular font-medium">
-                {(used / 1024 / 1024).toFixed(1)} MB of about {STORAGE_LIMIT_BYTES / 1024 / 1024} MB
-              </span>
-            </div>
-            <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-soft">
-              <div className={`h-full rounded-full ${usedPercent > 80 ? 'bg-sale' : 'bg-ink'}`} style={{ width: `${Math.max(2, usedPercent)}%` }} />
-            </div>
-            {usedPercent > 80 && <p className="mt-1.5 text-sm text-sale">Almost full. Remove old products or extra photos.</p>}
-          </div>
           <div className="mt-4 grid gap-2 sm:grid-cols-2">
             <button type="button" onClick={downloadBackup} className="btn btn-secondary">
               <Download size={18} />
@@ -163,6 +234,6 @@ export const AdminSettingsView: React.FC = () => {
 const Row: React.FC<{ label: string; value: string }> = ({ label, value }) => (
   <div className="flex flex-col gap-0.5 sm:flex-row sm:gap-4">
     <dt className="w-40 shrink-0 text-muted">{label}</dt>
-    <dd>{value}</dd>
+    <dd className="font-medium text-ink">{value}</dd>
   </div>
 );

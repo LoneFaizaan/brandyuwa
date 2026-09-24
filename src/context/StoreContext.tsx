@@ -10,6 +10,7 @@ import type {
   OrderStatus,
   PaymentMethod,
   Product,
+  SizeStock,
 } from '../types';
 import { STORE_CONFIG } from '../data/storeConfig';
 import { SAMPLE_PRODUCTS } from '../data/sampleProducts';
@@ -17,6 +18,18 @@ import { KEYS, load, loadLegacy, remove, removeLegacy, save } from '../lib/stora
 import { calcTotals } from '../lib/pricing';
 import { sha256 } from '../lib/sha256';
 import { useRouter } from '../lib/router';
+import {
+  supabase,
+  isSupabaseConfigured,
+  fetchProductsFromDb,
+  upsertProductDb,
+  deleteProductDb,
+  updateProductStockDb,
+  fetchOrdersFromDb,
+  insertOrderDb,
+  updateOrderStatusDb,
+  updateOrderPaidDb,
+} from '../lib/supabase';
 
 /* ───────────────────────── Types ───────────────────────── */
 
@@ -81,6 +94,11 @@ interface StoreContextValue {
   changeStaffPassword: (current: string, next: string) => string | null;
   restoreBackup: (data: unknown) => string | null;
 
+  // Backend / Cloud
+  backendStatus: 'connected' | 'connecting' | 'offline';
+  isBackendConnected: boolean;
+  refreshBackendData: () => Promise<void>;
+
   // UI
   isSearchOpen: boolean;
   setSearchOpen: (open: boolean) => void;
@@ -144,7 +162,7 @@ function fromLegacyProduct(p: any): Product | null {
 
 function loadInitialProducts(): Product[] {
   const stored = load<Product[]>(KEYS.products);
-  if (Array.isArray(stored)) return stored;
+  if (Array.isArray(stored) && stored.length > 0) return stored;
 
   // First visit after the update: keep products the shopkeeper added, drop old demo items.
   let initial = SAMPLE_PRODUCTS;
@@ -206,6 +224,10 @@ function adjustStock(products: Product[], items: { productId: string; size: stri
 export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { navigate } = useRouter();
 
+  /* Backend status */
+  const [backendStatus, setBackendStatus] = useState<'connected' | 'connecting' | 'offline'>('connecting');
+  const isBackendConnected = backendStatus === 'connected';
+
   /* Toasts */
   const [toasts, setToasts] = useState<Toast[]>([]);
   const toastId = useRef(0);
@@ -219,34 +241,107 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     [dismissToast],
   );
 
-  /* Products — saved immediately so a full storage can be reported */
+  /* Products — cached locally and synchronized with Supabase */
   const [products, setProducts] = useState<Product[]>(loadInitialProducts);
   const productsRef = useRef(products);
   const persistProducts = useCallback((next: Product[]) => {
     const ok = save(KEYS.products, next);
-    if (ok) {
-      productsRef.current = next;
-      setProducts(next);
-    }
+    productsRef.current = next;
+    setProducts(next);
     return ok;
   }, []);
 
   const liveProducts = useMemo(() => products.filter((p) => p.published), [products]);
   const getProduct = useCallback((id: string) => products.find((p) => p.id === id), [products]);
 
-  /* Orders */
+  /* Orders — cached locally and synchronized with Supabase */
   const [orders, setOrders] = useState<Order[]>(() => load<Order[]>(KEYS.orders) ?? []);
   const ordersRef = useRef(orders);
-  const persistOrders = useCallback(
-    (next: Order[]) => {
-      ordersRef.current = next;
-      setOrders(next);
-      if (!save(KEYS.orders, next)) {
-        showToast('Storage is full, so this change may not be kept after closing the browser.', 'error');
+  const persistOrders = useCallback((next: Order[]) => {
+    ordersRef.current = next;
+    setOrders(next);
+    save(KEYS.orders, next);
+  }, []);
+
+  /* Synchronize from Supabase */
+  const refreshBackendData = useCallback(async () => {
+    try {
+      const [remoteProducts, remoteOrders] = await Promise.all([
+        fetchProductsFromDb(),
+        fetchOrdersFromDb(),
+      ]);
+
+      if (remoteProducts && remoteProducts.length > 0) {
+        productsRef.current = remoteProducts;
+        setProducts(remoteProducts);
+        save(KEYS.products, remoteProducts);
+      } else if (remoteProducts && remoteProducts.length === 0 && productsRef.current.length > 0) {
+        // Seeding Supabase if remote is completely empty
+        for (const p of productsRef.current) {
+          await upsertProductDb(p);
+        }
       }
-    },
-    [showToast],
-  );
+
+      if (remoteOrders) {
+        ordersRef.current = remoteOrders;
+        setOrders(remoteOrders);
+        save(KEYS.orders, remoteOrders);
+      }
+
+      setBackendStatus('connected');
+    } catch (err) {
+      console.warn('Backend sync failed:', err);
+      setBackendStatus('offline');
+    }
+  }, []);
+
+  /* Initial mount and real-time synchronization */
+  useEffect(() => {
+    refreshBackendData();
+
+    if (!isSupabaseConfigured) {
+      setBackendStatus('offline');
+      return;
+    }
+
+    const channel = supabase
+      .channel('storefront-realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'products' },
+        async () => {
+          const remote = await fetchProductsFromDb();
+          if (remote && remote.length > 0) {
+            productsRef.current = remote;
+            setProducts(remote);
+            save(KEYS.products, remote);
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'orders' },
+        async () => {
+          const remote = await fetchOrdersFromDb();
+          if (remote) {
+            ordersRef.current = remote;
+            setOrders(remote);
+            save(KEYS.orders, remote);
+          }
+        }
+      )
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          setBackendStatus('connected');
+        } else if (status === 'TIMED_OUT' || status === 'CHANNEL_ERROR') {
+          setBackendStatus('offline');
+        }
+      });
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [refreshBackendData]);
 
   /* Bag, saved items, coupon, customer details */
   const [cartLines, setCartLines] = useState<CartLine[]>(() => load<CartLine[]>(KEYS.cart) ?? []);
@@ -281,11 +376,17 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         ? { ...existing, ...input }
         : { ...input, id: newProductId(input.name, current), createdAt: new Date().toISOString() };
       const next = existing ? current.map((p) => (p.id === id ? product : p)) : [product, ...current];
-      if (!persistProducts(next)) {
-        showToast('Could not save — storage is full. Remove some photos or old products and try again.', 'error');
-        return null;
-      }
+      
+      persistProducts(next);
       showToast(existing ? 'Changes saved' : 'Product added to your shop');
+
+      // Asynchronously upsert to Supabase
+      upsertProductDb(product).then((ok) => {
+        if (!ok) {
+          showToast('Saved locally, but could not sync with Supabase database.', 'error');
+        }
+      });
+
       return product;
     },
     [persistProducts, showToast],
@@ -297,20 +398,35 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       setCartLines((prev) => prev.filter((l) => l.productId !== id));
       setSaved((prev) => prev.filter((s) => s !== id));
       showToast('Product deleted', 'info');
+
+      // Delete from Supabase
+      deleteProductDb(id).then((ok) => {
+        if (!ok) {
+          showToast('Deleted locally, but could not remove from Supabase database.', 'error');
+        }
+      });
     },
     [persistProducts, showToast],
   );
 
   const setStock = useCallback(
     (productId: string, size: string, stock: number) => {
-      const next = productsRef.current.map((p) =>
-        p.id === productId
-          ? { ...p, sizes: p.sizes.map((s) => (s.size === size ? { ...s, stock: Math.max(0, Math.floor(stock) || 0) } : s)) }
-          : p,
-      );
-      if (!persistProducts(next)) showToast('Could not save — storage is full.', 'error');
+      let updatedSizes: SizeStock[] | null = null;
+      const next = productsRef.current.map((p) => {
+        if (p.id === productId) {
+          const sizes = p.sizes.map((s) => (s.size === size ? { ...s, stock: Math.max(0, Math.floor(stock) || 0) } : s));
+          updatedSizes = sizes;
+          return { ...p, sizes };
+        }
+        return p;
+      });
+      persistProducts(next);
+
+      if (updatedSizes) {
+        updateProductStockDb(productId, updatedSizes);
+      }
     },
-    [persistProducts, showToast],
+    [persistProducts],
   );
 
   /* ── Bag ── */
@@ -453,7 +569,8 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         note: input.note?.trim() || undefined,
       };
 
-      persistProducts(adjustStock(productsRef.current, order.items, -1));
+      const updatedProducts = adjustStock(productsRef.current, order.items, -1);
+      persistProducts(updatedProducts);
       persistOrders([order, ...ordersRef.current]);
       setCartLines([]);
       setCouponCode(null);
@@ -461,6 +578,22 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       const details: CustomerDetails = { ...input.customer, address: input.address ?? savedCustomer?.address };
       setSavedCustomer(details);
       save(KEYS.customer, details);
+
+      // Save order to Supabase
+      insertOrderDb(order).then((ok) => {
+        if (!ok) {
+          console.warn('Supabase order insert failed, order saved locally.');
+        }
+      });
+
+      // Update stocks in Supabase for each ordered item
+      for (const item of order.items) {
+        const prod = updatedProducts.find((p) => p.id === item.productId);
+        if (prod) {
+          updateProductStockDb(prod.id, prod.sizes);
+        }
+      }
+
       return order;
     },
     [cart, cartSubtotal, coupon, persistOrders, persistProducts, savedCustomer, showToast],
@@ -470,21 +603,41 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     (id: string, status: OrderStatus) => {
       const order = ordersRef.current.find((o) => o.id === id);
       if (!order || order.status === status || order.status === 'cancelled') return;
-      if (status === 'cancelled') persistProducts(adjustStock(productsRef.current, order.items, 1));
+      
+      let nextProducts = productsRef.current;
+      if (status === 'cancelled') {
+        nextProducts = adjustStock(productsRef.current, order.items, 1);
+        persistProducts(nextProducts);
+        for (const item of order.items) {
+          const prod = nextProducts.find((p) => p.id === item.productId);
+          if (prod) updateProductStockDb(prod.id, prod.sizes);
+        }
+      }
+
       const settlesOnHandover = order.payment === 'cod' || order.payment === 'store';
+      const willBePaid = status === 'delivered' && settlesOnHandover ? true : order.paid;
+      const nextHistory = [...order.history, { status, at: new Date().toISOString() }];
+
       const updated: Order = {
         ...order,
         status,
-        paid: status === 'delivered' && settlesOnHandover ? true : order.paid,
-        history: [...order.history, { status, at: new Date().toISOString() }],
+        paid: willBePaid,
+        history: nextHistory,
       };
+
       persistOrders(ordersRef.current.map((o) => (o.id === id ? updated : o)));
+
+      // Sync to Supabase
+      updateOrderStatusDb(id, status, willBePaid, nextHistory);
     },
     [persistOrders, persistProducts],
   );
 
   const setOrderPaid = useCallback(
-    (id: string, paid: boolean) => persistOrders(ordersRef.current.map((o) => (o.id === id ? { ...o, paid } : o))),
+    (id: string, paid: boolean) => {
+      persistOrders(ordersRef.current.map((o) => (o.id === id ? { ...o, paid } : o)));
+      updateOrderPaidDb(id, paid);
+    },
     [persistOrders],
   );
 
@@ -520,7 +673,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const expected = load<string>(KEYS.staffPassword) ?? STORE_CONFIG.staffPasswordHash;
     if (sha256(current) !== expected) return 'Your current password is not correct.';
     if (next.trim().length < 6) return 'The new password needs at least 6 characters.';
-    if (!save(KEYS.staffPassword, sha256(next))) return 'Could not save — storage is full.';
+    if (!save(KEYS.staffPassword, sha256(next))) return 'Could not save.';
     return null;
   }, []);
 
@@ -534,8 +687,17 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       if (!restoredProducts.every((p) => p && typeof p.id === 'string' && Array.isArray(p.images) && Array.isArray(p.sizes))) {
         return 'This backup file looks damaged.';
       }
-      if (!persistProducts(restoredProducts)) return 'Could not restore — the backup is too big for this browser.';
+      persistProducts(restoredProducts);
       persistOrders(backup.orders as Order[]);
+
+      // Sync backup items to Supabase
+      for (const p of restoredProducts) {
+        upsertProductDb(p);
+      }
+      for (const o of backup.orders as Order[]) {
+        insertOrderDb(o);
+      }
+
       return null;
     },
     [persistOrders, persistProducts],
@@ -571,6 +733,9 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     staffLogout,
     changeStaffPassword,
     restoreBackup,
+    backendStatus,
+    isBackendConnected,
+    refreshBackendData,
     isSearchOpen,
     setSearchOpen,
     receiptOrder,
