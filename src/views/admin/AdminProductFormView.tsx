@@ -357,7 +357,7 @@ export const AdminProductFormView: React.FC<{ productId?: string }> = ({ product
                     className={`relative flex h-12 w-10 shrink-0 items-center justify-center overflow-hidden rounded-lg ${
                       c.image ? 'border-2 border-ink' : 'border-2 border-dashed border-line-strong bg-canvas text-muted hover:border-ink hover:text-ink'
                     }`}
-                    aria-label={colorImages(c).length ? `Change photos for ${c.name || 'colour'}` : `Add photos for ${c.name || 'colour'}`}
+                    aria-label={c.image ? `Change photos for ${c.name || 'colour'}` : `Add photos for ${c.name || 'colour'}`}
                   >
                     {colorPhotoBusy === i ? (
                       <Loader2 size={18} className="animate-spin" />
