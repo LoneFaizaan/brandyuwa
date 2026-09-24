@@ -1,0 +1,267 @@
+import { createClient } from '@supabase/supabase-js';
+
+const SUPABASE_URL = 'https://qypufzpwfixkhkofojaz.supabase.co';
+const SUPABASE_ANON_KEY =
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF5cHVmenB3Zml4a2hrb2ZvamF6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAyNTQ1NTMsImV4cCI6MjEwNTgzMDU1M30.YpGUD9T0CgTdvwkdsAkfuzEvDlCdhYKvvkESflt7F5E';
+
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+const photo = (id) => `https://images.unsplash.com/photo-${id}?auto=format&fit=crop&w=900&q=75`;
+const sizes = (entries) => Object.entries(entries).map(([size, stock]) => ({ size, stock }));
+
+const SAMPLE_PRODUCTS = [
+  {
+    id: 'printed-cotton-shirt',
+    name: 'Printed Cotton Shirt',
+    category: 'Shirts',
+    price: 1499,
+    mrp: 1999,
+    images: [photo('1596755094514-f87e34085b2c')],
+    description: 'Soft cotton shirt with a small all-over print. Button-down collar and a regular fit that works tucked or untucked.',
+    fabric: '100% cotton',
+    colors: [{ name: 'Blue', hex: '#4a6d8c' }],
+    sizes: sizes({ S: 4, M: 6, L: 5, XL: 3, XXL: 2 }),
+    is_new: true,
+    is_featured: true,
+    published: true,
+    created_at: '2026-09-20T10:00:00.000Z',
+  },
+  {
+    id: 'white-oxford-shirt',
+    name: 'White Oxford Shirt',
+    category: 'Shirts',
+    price: 1299,
+    mrp: 1699,
+    images: [photo('1603252109303-2751441dd157'), photo('1598033129183-c4f50c736f10')],
+    description: 'A plain white shirt for office, weddings and everyday wear. Thick oxford cotton that keeps its shape after washing.',
+    fabric: '100% cotton oxford',
+    colors: [{ name: 'White', hex: '#ffffff' }],
+    sizes: sizes({ S: 5, M: 8, L: 8, XL: 4, XXL: 2 }),
+    is_featured: true,
+    published: true,
+    created_at: '2026-09-12T10:00:00.000Z',
+  },
+  {
+    id: 'formal-cotton-shirt',
+    name: 'Formal Cotton Shirt',
+    category: 'Shirts',
+    price: 1199,
+    mrp: 1499,
+    images: [photo('1602810318383-e386cc2a3ccf')],
+    description: 'Smart shirt with a crisp collar and full sleeves. Available in three colours.',
+    fabric: 'Cotton blend',
+    colors: [
+      { name: 'Grey', hex: '#6b7280' },
+      { name: 'White', hex: '#ffffff' },
+      { name: 'Maroon', hex: '#6d1f2b' },
+    ],
+    sizes: sizes({ S: 6, M: 10, L: 8, XL: 5, XXL: 3, '3XL': 1 }),
+    is_new: true,
+    published: true,
+    created_at: '2026-09-18T10:00:00.000Z',
+  },
+  {
+    id: 'black-graphic-tshirt',
+    name: 'Black Graphic T-Shirt',
+    category: 'T-Shirts',
+    price: 599,
+    mrp: 799,
+    images: [photo('1583743814966-8936f5b7be1a')],
+    description: 'Round-neck t-shirt with a printed chest graphic. Soft, breathable cotton for daily wear.',
+    fabric: '100% cotton',
+    colors: [{ name: 'Black', hex: '#1a1a1a' }],
+    sizes: sizes({ S: 8, M: 12, L: 10, XL: 6, XXL: 3 }),
+    is_new: true,
+    is_featured: true,
+    published: true,
+    created_at: '2026-09-21T10:00:00.000Z',
+  },
+  {
+    id: 'dark-wash-straight-jeans',
+    name: 'Dark Wash Straight Jeans',
+    category: 'Jeans',
+    price: 1699,
+    mrp: 2199,
+    images: [photo('1624378439575-d8705ad7ae80')],
+    description: 'Classic five-pocket jeans in a dark wash. Straight fit from hip to ankle with a little stretch for comfort.',
+    fabric: '98% cotton, 2% stretch',
+    colors: [{ name: 'Dark Blue', hex: '#1f2a3a' }],
+    sizes: sizes({ '28': 2, '30': 5, '32': 7, '34': 5, '36': 3, '38': 1 }),
+    is_featured: true,
+    published: true,
+    created_at: '2026-09-10T10:00:00.000Z',
+  },
+  {
+    id: 'ripped-slim-jeans',
+    name: 'Ripped Slim Fit Jeans',
+    category: 'Jeans',
+    price: 1499,
+    mrp: 1999,
+    images: [photo('1541099649105-f69ad21f3246')],
+    description: 'Light blue slim fit jeans with distressed knees and patch details.',
+    fabric: 'Cotton denim with stretch',
+    colors: [{ name: 'Light Blue', hex: '#8fa9c9' }],
+    sizes: sizes({ '28': 3, '30': 6, '32': 6, '34': 3, '36': 0 }),
+    is_new: true,
+    published: true,
+    created_at: '2026-09-19T10:00:00.000Z',
+  },
+  {
+    id: 'grey-cotton-chinos',
+    name: 'Grey Cotton Chinos',
+    category: 'Trousers',
+    price: 1299,
+    mrp: 1599,
+    images: [photo('1544441893-675973e31985')],
+    description: 'Everyday chinos with a clean flat front. Easy to dress up with a shirt or down with a t-shirt.',
+    fabric: 'Cotton twill',
+    colors: [{ name: 'Grey', hex: '#6b7280' }],
+    sizes: sizes({ '30': 4, '32': 6, '34': 4, '36': 2 }),
+    published: true,
+    created_at: '2026-09-08T10:00:00.000Z',
+  },
+  {
+    id: 'denim-jacket',
+    name: 'Denim Jacket',
+    category: 'Jackets',
+    price: 2299,
+    mrp: 2999,
+    images: [photo('1516257984-b1b4d707412e')],
+    description: 'Light wash denim jacket with chest pockets. Good on its own or layered over a hoodie in winter.',
+    fabric: '100% cotton denim',
+    colors: [{ name: 'Light Blue', hex: '#8fa9c9' }],
+    sizes: sizes({ S: 0, M: 3, L: 4, XL: 2 }),
+    is_new: true,
+    is_featured: true,
+    published: true,
+    created_at: '2026-09-22T10:00:00.000Z',
+  },
+  {
+    id: 'brown-biker-jacket',
+    name: 'Brown Biker Jacket',
+    category: 'Jackets',
+    price: 3499,
+    mrp: 4499,
+    images: [photo('1487222477894-8943e31ef7b2')],
+    description: 'Zip-front biker jacket in a soft leather-look finish with a quilted lining.',
+    fabric: 'PU leather-look shell, polyester lining',
+    colors: [{ name: 'Brown', hex: '#6b4a32' }],
+    sizes: sizes({ M: 2, L: 2, XL: 1 }),
+    published: true,
+    created_at: '2026-09-05T10:00:00.000Z',
+  },
+  {
+    id: 'grey-knit-sweater',
+    name: 'Grey Knit Sweater',
+    category: 'Winterwear',
+    price: 1399,
+    mrp: 1799,
+    images: [photo('1620799140408-edc6dcb6d633')],
+    description: 'Warm crew-neck sweater in a soft ribbed knit. Comfortable over a collared shirt or t-shirt.',
+    fabric: 'Acrylic wool blend',
+    colors: [{ name: 'Grey', hex: '#6b7280' }],
+    sizes: sizes({ M: 4, L: 5, XL: 3 }),
+    published: true,
+    created_at: '2026-09-14T10:00:00.000Z',
+  },
+  {
+    id: 'black-hoodie',
+    name: 'Classic Black Hoodie',
+    category: 'Winterwear',
+    price: 1599,
+    mrp: 1999,
+    images: [photo('1556905055-8f358a7a47b2')],
+    description: 'Fleece-lined pullover hoodie with a kangaroo pocket. Ribbed cuffs and hem to keep the cold out.',
+    fabric: 'Cotton polyester fleece',
+    colors: [{ name: 'Black', hex: '#1a1a1a' }],
+    sizes: sizes({ S: 3, M: 6, L: 6, XL: 4, XXL: 2 }),
+    is_new: true,
+    is_featured: true,
+    published: true,
+    created_at: '2026-09-23T10:00:00.000Z',
+  },
+  {
+    id: 'white-cotton-kurta',
+    name: 'White Cotton Kurta',
+    category: 'Kurtas',
+    price: 1199,
+    mrp: 1499,
+    images: [photo('1583391733956-3750e0ff4e8b')],
+    description: 'Knee-length plain white cotton kurta with a mandarin collar and side pockets. Suitable for Eid, prayers and family occasions.',
+    fabric: '100% cotton',
+    colors: [{ name: 'White', hex: '#ffffff' }],
+    sizes: sizes({ S: 3, M: 5, L: 6, XL: 4, XXL: 2 }),
+    is_featured: true,
+    published: true,
+    created_at: '2026-09-16T10:00:00.000Z',
+  },
+  {
+    id: 'embroidered-kurta',
+    name: 'Embroidered Kurta',
+    category: 'Kurtas',
+    price: 1799,
+    mrp: 2299,
+    images: [photo('1617137984095-74e4e5e3613f')],
+    description: 'Festive kurta with subtle thread embroidery on the collar and placket. Soft cotton silk blend that drapes well.',
+    fabric: 'Cotton silk blend',
+    colors: [{ name: 'Navy', hex: '#1f2a44' }, { name: 'Maroon', hex: '#6d1f2b' }],
+    sizes: sizes({ M: 4, L: 4, XL: 2 }),
+    is_new: true,
+    published: true,
+    created_at: '2026-09-22T10:00:00.000Z',
+  },
+  {
+    id: 'leather-belt',
+    name: 'Classic Leather Belt',
+    category: 'Accessories',
+    price: 499,
+    mrp: 699,
+    images: [photo('1624222247344-550fb60583dc')],
+    description: 'Black and brown reversible leather belt with a brushed metal buckle. Fits waist sizes 30 to 42.',
+    fabric: 'Genuine leather',
+    colors: [{ name: 'Black', hex: '#1a1a1a' }, { name: 'Brown', hex: '#6b4a32' }],
+    sizes: sizes({ 'Free Size': 12 }),
+    published: true,
+    created_at: '2026-09-01T10:00:00.000Z',
+  },
+  {
+    id: 'casual-cotton-cap',
+    name: 'Casual Cotton Cap',
+    category: 'Accessories',
+    price: 349,
+    mrp: 499,
+    images: [photo('1588850561407-ed78c282e89b')],
+    description: 'Six-panel cotton baseball cap with an adjustable strap at the back.',
+    fabric: '100% cotton',
+    colors: [{ name: 'Navy', hex: '#1f2a44' }, { name: 'Black', hex: '#1a1a1a' }],
+    sizes: sizes({ 'Free Size': 8 }),
+    published: true,
+    created_at: '2026-09-03T10:00:00.000Z',
+  }
+];
+
+async function seed() {
+  console.log('Seeding products into Supabase project qypufzpwfixkhkofojaz...');
+  const cleanedProducts = SAMPLE_PRODUCTS.map((p) => ({
+    ...p,
+    is_new: Boolean(p.is_new),
+    is_featured: Boolean(p.is_featured),
+    published: p.published !== false,
+  }));
+  const { data, error } = await supabase.from('products').upsert(cleanedProducts);
+  if (error) {
+    console.error('Error seeding products:', error);
+    process.exit(1);
+  }
+  console.log('Successfully seeded', SAMPLE_PRODUCTS.length, 'products into Supabase!');
+
+  const { data: rows, error: countErr } = await supabase.from('products').select('id, name, price');
+  if (countErr) {
+    console.error('Error verifying products:', countErr);
+    process.exit(1);
+  }
+  console.log('Verification: Remote database now has', rows.length, 'products:');
+  rows.forEach((r) => console.log(`  - [${r.id}] ${r.name} (Rs ${r.price})`));
+}
+
+seed();
