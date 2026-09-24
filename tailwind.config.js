@@ -19,9 +19,16 @@ export default {
         warn: '#a14a00',
         'warn-soft': '#fff4e0',
         whatsapp: '#128c4b',
+        brand: {
+          navy: '#0b2158',
+          'navy-dark': '#061333',
+          gold: '#cca038',
+          'gold-light': '#e5b842',
+        },
       },
       fontFamily: {
         sans: ['Inter', 'system-ui', '-apple-system', 'Segoe UI', 'Roboto', 'Helvetica', 'Arial', 'sans-serif'],
+        script: ['Playball', 'Dancing Script', 'Brush Script MT', 'cursive'],
       },
       maxWidth: {
         page: '72rem',

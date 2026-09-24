@@ -50,8 +50,14 @@ ALTER TABLE public.products ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.orders ENABLE ROW LEVEL SECURITY;
 
 -- Drop existing policies if any
+DROP POLICY IF EXISTS "Public read products" ON public.products;
+DROP POLICY IF EXISTS "Public manage products" ON public.products;
 DROP POLICY IF EXISTS "Public can view products" ON public.products;
 DROP POLICY IF EXISTS "Public and staff can manage products" ON public.products;
+DROP POLICY IF EXISTS "Public create orders" ON public.orders;
+DROP POLICY IF EXISTS "Public view orders" ON public.orders;
+DROP POLICY IF EXISTS "Public update orders" ON public.orders;
+DROP POLICY IF EXISTS "Public delete orders" ON public.orders;
 DROP POLICY IF EXISTS "Anyone can insert orders" ON public.orders;
 DROP POLICY IF EXISTS "Anyone can view orders" ON public.orders;
 DROP POLICY IF EXISTS "Anyone can update orders" ON public.orders;
@@ -91,6 +97,12 @@ CREATE POLICY "Public update orders"
   TO anon, authenticated
   USING (true)
   WITH CHECK (true);
+
+CREATE POLICY "Public delete orders"
+  ON public.orders
+  FOR DELETE
+  TO anon, authenticated
+  USING (true);
 
 -- Storage bucket for product images
 INSERT INTO storage.buckets (id, name, public)

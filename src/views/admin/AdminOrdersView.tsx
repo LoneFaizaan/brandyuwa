@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ClipboardList, Phone, Receipt } from 'lucide-react';
+import { ClipboardList, Phone, Receipt, Trash2 } from 'lucide-react';
 import type { Order, OrderStatus } from '../../types';
 import { useStore } from '../../context/StoreContext';
 import { usePageTitle } from '../../lib/hooks';
@@ -60,7 +60,7 @@ export const AdminOrdersView: React.FC = () => {
   const list = tab === 'all' ? orders : orders.filter((o) => o.status === tab);
 
   return (
-    <AdminPage title="Orders" subtitle="Orders placed on this device. Customer orders also arrive on your WhatsApp.">
+    <AdminPage title="Orders" subtitle="Real-time orders synced with cloud. Customer orders also arrive on your WhatsApp.">
       <div className="no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4">
         {tabs.map((t) => (
           <button key={t.key} type="button" onClick={() => setTab(t.key)} aria-pressed={tab === t.key} className={`chip ${tab === t.key ? 'chip-active' : ''}`}>
@@ -73,7 +73,7 @@ export const AdminOrdersView: React.FC = () => {
         <EmptyState
           icon={<ClipboardList size={26} />}
           title={orders.length === 0 ? 'No orders yet' : 'Nothing here'}
-          description={orders.length === 0 ? 'Orders will show up here when they are placed on this device.' : 'No orders in this list.'}
+          description={orders.length === 0 ? 'Orders will show up here in real time as customers place them.' : 'No orders in this list.'}
         />
       ) : (
         <ul className="mt-4 space-y-3">
@@ -89,7 +89,7 @@ export const AdminOrdersView: React.FC = () => {
 };
 
 const OrderCard: React.FC<{ order: Order }> = ({ order }) => {
-  const { setOrderStatus, setOrderPaid, setReceiptOrder } = useStore();
+  const { setOrderStatus, setOrderPaid, setReceiptOrder, deleteOrder } = useStore();
   const next = NEXT[order.status];
   const label = nextLabel(order);
   const closed = order.status === 'delivered' || order.status === 'cancelled';
@@ -178,7 +178,7 @@ const OrderCard: React.FC<{ order: Order }> = ({ order }) => {
             {order.paid ? 'Mark not paid' : 'Mark paid'}
           </button>
         )}
-        {!closed && (
+        {!closed ? (
           <button
             type="button"
             onClick={() => {
@@ -187,6 +187,19 @@ const OrderCard: React.FC<{ order: Order }> = ({ order }) => {
             className="btn btn-danger btn-sm flex-1"
           >
             Cancel order
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={() => {
+              if (window.confirm(`Permanently remove order ${order.id} from records?`)) {
+                deleteOrder(order.id);
+              }
+            }}
+            className="btn btn-secondary btn-sm flex-1 text-sale hover:bg-sale-soft"
+          >
+            <Trash2 size={16} />
+            Delete
           </button>
         )}
       </div>

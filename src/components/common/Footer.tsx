@@ -28,7 +28,7 @@ export const Footer: React.FC = () => {
     <footer className="border-t border-line bg-soft">
       <div className="page grid gap-8 py-10 sm:grid-cols-2 md:grid-cols-4">
         <div className="space-y-4 sm:col-span-2">
-          <Logo />
+          <Logo size="lg" />
           <p className="max-w-sm text-[15px] leading-relaxed text-muted">
             {address.line1}, {address.locality}, {address.city} {address.pincode}
             <br />

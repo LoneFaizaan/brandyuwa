@@ -2,7 +2,17 @@
  * All saving happens through this file. Today data is kept in the browser
  * (localStorage). To connect a real backend later, replace these functions.
  */
-const PREFIX = 'by:v2:';
+const PREFIX = 'by:v3:';
+
+// Clear data saved by older versions (fresh start for every browser)
+try {
+  for (let i = localStorage.length - 1; i >= 0; i--) {
+    const k = localStorage.key(i);
+    if (k && (k.startsWith('by:v2:') || k.startsWith('brandyuwa_'))) localStorage.removeItem(k);
+  }
+} catch {
+  /* storage unavailable */
+}
 
 export const KEYS = {
   products: 'products',
@@ -41,24 +51,6 @@ export function save(key: StorageKey, value: unknown): boolean {
 export function remove(key: StorageKey) {
   try {
     localStorage.removeItem(PREFIX + key);
-  } catch {
-    /* storage unavailable */
-  }
-}
-
-/** Reads a key written by the previous version of the site. */
-export function loadLegacy<T>(key: string): T | null {
-  try {
-    const raw = localStorage.getItem(key);
-    return raw === null ? null : (JSON.parse(raw) as T);
-  } catch {
-    return null;
-  }
-}
-
-export function removeLegacy(...keys: string[]) {
-  try {
-    keys.forEach((k) => localStorage.removeItem(k));
   } catch {
     /* storage unavailable */
   }

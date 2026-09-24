@@ -13,8 +13,7 @@ import type {
   SizeStock,
 } from '../types';
 import { STORE_CONFIG } from '../data/storeConfig';
-import { SAMPLE_PRODUCTS } from '../data/sampleProducts';
-import { KEYS, load, loadLegacy, remove, removeLegacy, save } from '../lib/storage';
+import { KEYS, load, remove, save } from '../lib/storage';
 import { calcTotals } from '../lib/pricing';
 import { sha256 } from '../lib/sha256';
 import { useRouter } from '../lib/router';
@@ -29,6 +28,7 @@ import {
   insertOrderDb,
   updateOrderStatusDb,
   updateOrderPaidDb,
+  deleteOrderDb,
 } from '../lib/supabase';
 
 /* ───────────────────────── Types ───────────────────────── */
@@ -85,6 +85,7 @@ interface StoreContextValue {
   placeOrder: (input: PlaceOrderInput) => Order | null;
   setOrderStatus: (id: string, status: OrderStatus) => void;
   setOrderPaid: (id: string, paid: boolean) => void;
+  deleteOrder: (id: string) => Promise<void>;
   savedCustomer: CustomerDetails | null;
 
   // Staff
@@ -119,64 +120,9 @@ const STAFF_SESSION_DAYS = 30;
 const MAX_LOGIN_TRIES = 5;
 const LOCKOUT_MS = 60_000;
 
-const LEGACY_KEYS = [
-  'brandyuwa_products',
-  'brandyuwa_orders',
-  'brandyuwa_cart',
-  'brandyuwa_wishlist',
-  'brandyuwa_user',
-  'brandyuwa_recent_searches',
-];
-
-const CATEGORY_RENAMES: Record<string, string> = { Overshirts: 'Shirts', Traditional: 'Kurtas', Hoodies: 'Winterwear' };
-
-/** Converts a product saved by the previous version of the site. */
-function fromLegacyProduct(p: any): Product | null {
-  if (!p || typeof p !== 'object' || !p.id || !p.name) return null;
-  const images = [p.image, ...(Array.isArray(p.gallery) ? p.gallery : [])].filter(
-    (x): x is string => typeof x === 'string' && x.length > 0,
-  );
-  const price = Number(p.price) || 0;
-  const mrp = Number(p.originalPrice) || 0;
-  return {
-    id: String(p.id),
-    name: String(p.name),
-    category: CATEGORY_RENAMES[p.category] ?? String(p.category ?? 'Shirts'),
-    price,
-    mrp: mrp > price ? mrp : undefined,
-    images: Array.from(new Set(images)),
-    description: String(p.description ?? ''),
-    fabric: p.fabric ? String(p.fabric) : undefined,
-    colors: Array.isArray(p.colors)
-      ? p.colors.filter((c: any) => c?.name).map((c: any) => ({ name: String(c.name), hex: String(c.hex ?? '#999999'), image: c.image }))
-      : [],
-    sizes: Array.isArray(p.sizes)
-      ? p.sizes.map((s: any) => ({ size: String(s.size), stock: Math.max(0, Number(s.stock) || 0) }))
-      : [],
-    isNew: !!p.isNew,
-    isFeatured: !!p.isBestseller,
-    published: p.status ? p.status === 'Published' : true,
-    createdAt: new Date().toISOString(),
-  };
-}
-
 function loadInitialProducts(): Product[] {
   const stored = load<Product[]>(KEYS.products);
-  if (Array.isArray(stored) && stored.length > 0) return stored;
-
-  // First visit after the update: keep products the shopkeeper added, drop old demo items.
-  let initial = SAMPLE_PRODUCTS;
-  const legacy = loadLegacy<unknown[]>('brandyuwa_products');
-  if (Array.isArray(legacy)) {
-    const own = legacy
-      .filter((p: any) => p && !/^prod-\d{1,2}$/.test(String(p.id)))
-      .map(fromLegacyProduct)
-      .filter((p): p is Product => p !== null);
-    if (own.length > 0) initial = own;
-  }
-  removeLegacy(...LEGACY_KEYS);
-  save(KEYS.products, initial);
-  return initial;
+  return Array.isArray(stored) ? stored : [];
 }
 
 const ID_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -271,18 +217,13 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         fetchOrdersFromDb(),
       ]);
 
-      if (remoteProducts && remoteProducts.length > 0) {
+      if (remoteProducts !== null) {
         productsRef.current = remoteProducts;
         setProducts(remoteProducts);
         save(KEYS.products, remoteProducts);
-      } else if (remoteProducts && remoteProducts.length === 0 && productsRef.current.length > 0) {
-        // Seeding Supabase if remote is completely empty
-        for (const p of productsRef.current) {
-          await upsertProductDb(p);
-        }
       }
 
-      if (remoteOrders) {
+      if (remoteOrders !== null) {
         ordersRef.current = remoteOrders;
         setOrders(remoteOrders);
         save(KEYS.orders, remoteOrders);
@@ -311,7 +252,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         { event: '*', schema: 'public', table: 'products' },
         async () => {
           const remote = await fetchProductsFromDb();
-          if (remote && remote.length > 0) {
+          if (remote !== null) {
             productsRef.current = remote;
             setProducts(remote);
             save(KEYS.products, remote);
@@ -323,7 +264,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         { event: '*', schema: 'public', table: 'orders' },
         async () => {
           const remote = await fetchOrdersFromDb();
-          if (remote) {
+          if (remote !== null) {
             ordersRef.current = remote;
             setOrders(remote);
             save(KEYS.orders, remote);
@@ -641,6 +582,15 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     [persistOrders],
   );
 
+  const deleteOrder = useCallback(
+    async (id: string) => {
+      persistOrders(ordersRef.current.filter((o) => o.id !== id));
+      await deleteOrderDb(id);
+      showToast('Order removed');
+    },
+    [persistOrders, showToast],
+  );
+
   /* ── Staff ── */
 
   const staffLogin = useCallback((password: string) => {
@@ -727,6 +677,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     placeOrder,
     setOrderStatus,
     setOrderPaid,
+    deleteOrder,
     savedCustomer,
     isStaff,
     staffLogin,

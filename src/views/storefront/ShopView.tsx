@@ -98,12 +98,14 @@ export const ShopView: React.FC = () => {
         <div className="mt-6">
           {results.length === 0 ? (
             <EmptyState
-              title="No matching products"
-              description="Try another category or remove some filters."
+              title={liveProducts.length === 0 ? "Catalog is being updated" : "No matching products"}
+              description={liveProducts.length === 0 ? "New products will show up here as soon as they are added." : "Try another category or remove some filters."}
               action={
-                <button type="button" onClick={() => navigate('/shop', { replace: true })} className="btn btn-primary">
-                  Show all products
-                </button>
+                liveProducts.length > 0 ? (
+                  <button type="button" onClick={() => navigate('/shop', { replace: true })} className="btn btn-primary">
+                    Show all products
+                  </button>
+                ) : undefined
               }
             />
           ) : (

@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Camera, ChevronLeft, Loader2, Plus, Trash2, X } from 'lucide-react';
-import type { ProductColor } from '../../types';
+import { Camera, Check, ChevronLeft, Loader2, Plus, Trash2, X } from 'lucide-react';
+import { colorImages, type ProductColor } from '../../types';
 import { useStore } from '../../context/StoreContext';
 import { Link, useRouter } from '../../lib/router';
 import { usePageTitle } from '../../lib/hooks';
@@ -8,7 +8,7 @@ import { discountPercent, formatPrice } from '../../lib/format';
 import { CATEGORY_NAMES, COLOR_SWATCHES, compareSizes, getCategory } from '../../data/catalog';
 import { MAX_PHOTOS, PhotoPicker } from '../../components/admin/PhotoPicker';
 import { Modal } from '../../components/common/Modal';
-import { processImageFile } from '../../lib/imageUtils';
+import { processImageFiles } from '../../lib/imageUtils';
 import { QuantityStepper } from '../../components/common/QuantityStepper';
 import { Switch } from '../../components/common/Switch';
 import { EmptyState } from '../../components/common/EmptyState';
@@ -29,7 +29,9 @@ export const AdminProductFormView: React.FC<{ productId?: string }> = ({ product
   const [stock, setStock] = useState<Record<string, number>>(() =>
     Object.fromEntries((existing?.sizes ?? []).map((s) => [s.size, s.stock])),
   );
-  const [colors, setColors] = useState<ProductColor[]>(existing?.colors ?? []);
+  const [colors, setColors] = useState<ProductColor[]>(() =>
+    (existing?.colors ?? []).map((c) => ({ name: c.name, hex: c.hex, images: colorImages(c) })),
+  );
   const [description, setDescription] = useState(existing?.description ?? '');
   const [fabric, setFabric] = useState(existing?.fabric ?? '');
   const [published, setPublished] = useState(existing?.published ?? true);
@@ -99,30 +101,35 @@ export const AdminProductFormView: React.FC<{ productId?: string }> = ({ product
     }
   };
 
-  const addColorPhoto = async (file?: File) => {
+  const addColorPhotos = async (files: FileList | null) => {
     const index = colorTarget.current;
     colorTarget.current = null;
+    const picked = files ? Array.from(files) : [];
     if (colorFileRef.current) colorFileRef.current.value = '';
-    if (!file || index === null) return;
-    if (images.length >= MAX_PHOTOS) {
+    if (picked.length === 0 || index === null) return;
+    const room = MAX_PHOTOS - images.length;
+    if (room <= 0) {
       showToast(`You can add up to ${MAX_PHOTOS} photos.`, 'error');
       return;
     }
     setColorPhotoBusy(index);
-    try {
-      const url = await processImageFile(file);
-      change(setImages, 'images')([...images, url]);
-      change(setColors)(colors.map((c, i) => (i === index ? { ...c, image: url } : c)));
-    } catch (err) {
-      showToast(err instanceof Error ? err.message : 'Could not add that photo.', 'error');
-    } finally {
-      setColorPhotoBusy(null);
-    }
+    const { urls, errors } = await processImageFiles(picked.slice(0, room));
+    setColorPhotoBusy(null);
+    if (picked.length > room) errors.push(`Only ${MAX_PHOTOS} photos allowed — some were not added.`);
+    if (errors.length) showToast(errors[0], 'error');
+    if (urls.length === 0) return;
+    change(setImages, 'images')([...images, ...urls]);
+    change(setColors)(colors.map((c, i) => (i === index ? { ...c, images: [...colorImages(c), ...urls] } : c)));
+  };
+
+  const toggleColorPhoto = (index: number, src: string) => {
+    const current = colorImages(colors[index]);
+    updateColor(index, { images: current.includes(src) ? current.filter((x) => x !== src) : [...current, src] });
   };
 
   const setImagesAndFixColors = (next: string[]) => {
     change(setImages, 'images')(next);
-    setColors((prev) => prev.map((c) => (c.image && !next.includes(c.image) ? { ...c, image: undefined } : c)));
+    setColors((prev) => prev.map((c) => ({ ...c, images: colorImages(c).filter((src) => next.includes(src)) })));
   };
 
   const save = () => {
@@ -140,7 +147,10 @@ export const AdminProductFormView: React.FC<{ productId?: string }> = ({ product
 
     const seen = new Set<string>();
     const cleanColors = colors
-      .map((c) => ({ ...c, name: c.name.trim() }))
+      .map((c) => {
+        const own = colorImages(c).filter((src) => images.includes(src));
+        return { name: c.name.trim(), hex: c.hex, ...(own.length ? { images: own } : {}) };
+      })
       .filter((c) => c.name && !seen.has(c.name.toLowerCase()) && seen.add(c.name.toLowerCase()));
 
     const saved = saveProduct(
@@ -355,14 +365,21 @@ export const AdminProductFormView: React.FC<{ productId?: string }> = ({ product
                     onClick={() => openColorPhoto(i)}
                     disabled={colorPhotoBusy === i}
                     className={`relative flex h-12 w-10 shrink-0 items-center justify-center overflow-hidden rounded-lg ${
-                      c.image ? 'border-2 border-ink' : 'border-2 border-dashed border-line-strong bg-canvas text-muted hover:border-ink hover:text-ink'
+                      colorImages(c).length ? 'border-2 border-ink' : 'border-2 border-dashed border-line-strong bg-canvas text-muted hover:border-ink hover:text-ink'
                     }`}
-                    aria-label={c.image ? `Change photos for ${c.name || 'colour'}` : `Add photos for ${c.name || 'colour'}`}
+                    aria-label={colorImages(c).length ? `Change photos for ${c.name || 'colour'}` : `Add photos for ${c.name || 'colour'}`}
                   >
                     {colorPhotoBusy === i ? (
                       <Loader2 size={18} className="animate-spin" />
-                    ) : c.image ? (
-                      <img src={c.image} alt="" className="h-full w-full object-cover" />
+                    ) : colorImages(c).length ? (
+                      <>
+                        <img src={colorImages(c)[0]} alt="" className="h-full w-full object-cover" />
+                        {colorImages(c).length > 1 && (
+                          <span className="absolute bottom-0.5 right-0.5 rounded bg-ink px-1 text-[10px] font-bold text-white">
+                            {colorImages(c).length}
+                          </span>
+                        )}
+                      </>
                     ) : (
                       <Camera size={18} />
                     )}
@@ -380,7 +397,7 @@ export const AdminProductFormView: React.FC<{ productId?: string }> = ({ product
             </ul>
           )}
           {colors.length > 0 && (
-            <p className="hint">Tap the camera next to a colour to add its photo. Customers see it when they pick that colour.</p>
+            <p className="hint">Tap the camera next to a colour to add its photos — you can pick several at once. Customers see them when they pick that colour.</p>
           )}
           <input
             ref={colorFileRef}
@@ -389,12 +406,13 @@ export const AdminProductFormView: React.FC<{ productId?: string }> = ({ product
             className="sr-only"
             tabIndex={-1}
             aria-hidden="true"
-            onChange={(e) => addColorPhoto(e.target.files?.[0])}
+            multiple
+            onChange={(e) => addColorPhotos(e.target.files)}
           />
         </FormCard>
 
         {pickerFor !== null && colors[pickerFor] && (
-          <Modal open onClose={() => setPickerFor(null)} title={`Photo for ${colors[pickerFor].name || 'this colour'}`}>
+          <Modal open onClose={() => setPickerFor(null)} title={`Photos for ${colors[pickerFor].name || 'this colour'}`}>
             <div className="space-y-4 p-5">
               <button
                 type="button"
@@ -407,46 +425,39 @@ export const AdminProductFormView: React.FC<{ productId?: string }> = ({ product
                 className="btn btn-primary w-full"
               >
                 <Camera size={18} />
-                Take or choose a new photo
+                Take or choose new photos
               </button>
               {images.length >= MAX_PHOTOS && (
                 <p className="text-sm text-warn">You have {MAX_PHOTOS} photos already. Pick one below or remove a photo first.</p>
               )}
               <div>
-                <p className="mb-2 text-sm font-medium text-muted">Or use a photo you already added</p>
+                <p className="mb-2 text-sm font-medium text-muted">Or tap photos you already added</p>
                 <div className="grid grid-cols-4 gap-2">
                   {images.map((src, idx) => {
-                    const selected = colors[pickerFor].image === src;
+                    const selected = colorImages(colors[pickerFor]).includes(src);
                     return (
                       <button
                         key={idx}
                         type="button"
-                        onClick={() => {
-                          updateColor(pickerFor, { image: src });
-                          setPickerFor(null);
-                        }}
+                        onClick={() => toggleColorPhoto(pickerFor, src)}
                         aria-pressed={selected}
                         aria-label={`Use photo ${idx + 1}`}
-                        className={`aspect-[3/4] overflow-hidden rounded-lg border-2 ${selected ? 'border-ink' : 'border-transparent'}`}
+                        className={`relative aspect-[3/4] overflow-hidden rounded-lg border-2 ${selected ? 'border-ink' : 'border-transparent opacity-60'}`}
                       >
                         <img src={src} alt="" className="h-full w-full object-cover" />
+                        {selected && (
+                          <span className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded-full bg-ink text-white">
+                            <Check size={14} strokeWidth={3} />
+                          </span>
+                        )}
                       </button>
                     );
                   })}
                 </div>
               </div>
-              {colors[pickerFor].image && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    updateColor(pickerFor, { image: undefined });
-                    setPickerFor(null);
-                  }}
-                  className="btn btn-secondary w-full"
-                >
-                  Don't use a photo for this colour
-                </button>
-              )}
+              <button type="button" onClick={() => setPickerFor(null)} className="btn btn-secondary w-full">
+                Done
+              </button>
             </div>
           </Modal>
         )}

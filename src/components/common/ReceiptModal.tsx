@@ -4,6 +4,7 @@ import { useStore } from '../../context/StoreContext';
 import { STORE_ADDRESS_FULL, STORE_CONFIG, STORE_PHONE_DISPLAY } from '../../data/storeConfig';
 import { formatDateTime, formatPrice, paymentLabel, statusLabel } from '../../lib/format';
 import { Modal } from './Modal';
+import { Logo } from './Logo';
 
 export const ReceiptModal: React.FC = () => {
   const { receiptOrder: order, setReceiptOrder } = useStore();
@@ -35,7 +36,9 @@ export const ReceiptModal: React.FC = () => {
     >
       <div className="space-y-5 p-5 text-[15px]">
         <div className="border-b border-dashed border-line-strong pb-4 text-center">
-          <p className="text-xl font-bold">{STORE_CONFIG.name}</p>
+          <div className="flex justify-center pb-2">
+            <Logo size="md" />
+          </div>
           <p className="mt-1 text-sm leading-relaxed text-muted">
             {STORE_ADDRESS_FULL}
             <br />

@@ -265,6 +265,20 @@ export async function updateOrderPaidDb(id: string, paid: boolean): Promise<bool
   }
 }
 
+export async function deleteOrderDb(id: string): Promise<boolean> {
+  try {
+    const { error } = await supabase.from('orders').delete().eq('id', id);
+    if (error) {
+      console.error('Supabase deleteOrder error:', error);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.error('Supabase deleteOrder exception:', err);
+    return false;
+  }
+}
+
 /* ───────────────────────── Image Upload Helper ───────────────────────── */
 
 export async function uploadImageToSupabase(file: File): Promise<string | null> {

@@ -5,8 +5,14 @@
 import type { Coupon } from '../types';
 
 export const STORE_CONFIG = {
-  name: 'BrandYuwa',
+  name: 'Brand Yuva',
+  tagline: 'Run for fashion',
   shortName: 'BY',
+  logoUrl: '/brand-logo.svg',
+  logoDarkUrl: '/brand-logo-light.svg',
+  logoFullUrl: '/brand-logo-full.png',
+  logoRoundUrl: '/brand-logo-round.png',
+  logoTransparentUrl: '/brand-logo-transparent.png',
   description: "Men's clothing store in Drugmulla, Kupwara.",
 
   hero: {

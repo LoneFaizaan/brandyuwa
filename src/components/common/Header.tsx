@@ -34,7 +34,7 @@ export const Header: React.FC = () => {
       </div>
       <header className="sticky top-0 z-40 border-b border-line bg-canvas/95 backdrop-blur-md">
         <div className="page flex h-14 items-center justify-between gap-3">
-          <Link to="/" aria-label={`${STORE_CONFIG.name} home`} className="rounded-lg">
+          <Link to="/" aria-label={`${STORE_CONFIG.name} home`} className="rounded-lg shrink-0">
             <Logo />
           </Link>
 

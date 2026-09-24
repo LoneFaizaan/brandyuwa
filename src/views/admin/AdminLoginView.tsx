@@ -27,7 +27,7 @@ export const AdminLoginView: React.FC = () => {
     <div className="flex min-h-[100dvh] flex-col items-center justify-center bg-soft px-4 py-10">
       <div className="w-full max-w-sm">
         <div className="mb-6 flex justify-center">
-          <Logo />
+          <Logo size="lg" />
         </div>
         <form onSubmit={submit} className="card p-6" noValidate>
           <h1 className="text-xl font-bold">Staff login</h1>
