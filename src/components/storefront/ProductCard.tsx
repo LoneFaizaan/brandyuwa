@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Heart } from 'lucide-react';
-import type { Product } from '../../types';
+import { colorImages, type Product } from '../../types';
 import { useStore } from '../../context/StoreContext';
 import { Link } from '../../lib/router';
 import { discountPercent, formatPrice, totalStock } from '../../lib/format';
@@ -13,13 +13,20 @@ export const ProductCard: React.FC<{ product: Product; eager?: boolean }> = ({ p
   const saved = isSaved(product.id);
   const soldOut = totalStock(product) === 0;
   const off = discountPercent(product);
+  const [activeColor, setActiveColor] = useState<string | null>(null);
+
+  // Tapping a colour dot shows that colour's photo; opening the product keeps the colour
+  const colorPhoto = (name: string) => colorImages(product.colors.find((c) => c.name === name) ?? { name, hex: '' })[0];
+  const cover = (activeColor && colorPhoto(activeColor)) || product.images[0];
+  const href = `/product/${product.id}${activeColor ? `?color=${encodeURIComponent(activeColor)}` : ''}`;
+  const swatches = product.colors.slice(0, 5);
 
   return (
     <div className="group relative">
-      <Link to={`/product/${product.id}`} className="block rounded-xl">
+      <Link to={href} className="block rounded-xl">
         <div className="relative aspect-[3/4] overflow-hidden rounded-xl bg-soft">
           <ProductImage
-            src={product.images[0]}
+            src={cover}
             alt={product.name}
             eager={eager}
             className={`h-full w-full transition-transform duration-300 group-hover:scale-[1.03] ${soldOut ? 'opacity-60' : ''}`}
@@ -41,9 +48,35 @@ export const ProductCard: React.FC<{ product: Product; eager?: boolean }> = ({ p
             <span className="tabular text-[15px] font-semibold">{formatPrice(product.price)}</span>
             {off > 0 && <span className="tabular text-sm text-muted line-through">{formatPrice(product.mrp!)}</span>}
           </p>
-          {product.colors.length > 1 && <p className="mt-0.5 text-sm text-muted">{product.colors.length} colours</p>}
         </div>
       </Link>
+      {product.colors.length > 1 && (
+        <div className="-ml-1.5 mt-1 flex items-center" role="group" aria-label="Colours">
+          {swatches.map((c) => {
+            const active = (activeColor ?? product.colors[0].name) === c.name;
+            return (
+              <button
+                key={c.name}
+                type="button"
+                onClick={() => setActiveColor(c.name)}
+                onMouseEnter={() => colorPhoto(c.name) && setActiveColor(c.name)}
+                aria-label={`Show ${c.name}`}
+                aria-pressed={active}
+                title={c.name}
+                className="flex h-8 w-8 items-center justify-center"
+              >
+                <span
+                  className={`h-5 w-5 rounded-full border border-black/15 ${active ? 'ring-2 ring-ink ring-offset-2' : ''}`}
+                  style={{ backgroundColor: c.hex }}
+                />
+              </button>
+            );
+          })}
+          {product.colors.length > swatches.length && (
+            <span className="text-sm text-muted">+{product.colors.length - swatches.length}</span>
+          )}
+        </div>
+      )}
       <button
         type="button"
         onClick={() => toggleSaved(product.id)}

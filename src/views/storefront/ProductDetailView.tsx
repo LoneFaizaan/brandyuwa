@@ -16,13 +16,17 @@ import { NotFoundView } from './NotFoundView';
 
 export const ProductDetailView: React.FC<{ productId: string }> = ({ productId }) => {
   const { getProduct, liveProducts, addToCart, cart, isSaved, toggleSaved, isStaff, showToast } = useStore();
-  const { navigate } = useRouter();
+  const { navigate, query } = useRouter();
   const product = getProduct(productId);
   const visible = !!product && (product.published || isStaff);
 
   const sizes = useMemo(() => [...(product?.sizes ?? [])].sort((a, b) => compareSizes(a.size, b.size)), [product]);
   const [size, setSize] = useState(sizes.length === 1 ? sizes[0].size : '');
-  const [color, setColor] = useState(product?.colors[0]?.name);
+  // Open on the colour picked in the shop grid (?color=Black), otherwise the first colour
+  const [color, setColor] = useState(() => {
+    const wanted = query.get('color');
+    return product?.colors.find((c) => c.name === wanted)?.name ?? product?.colors[0]?.name;
+  });
   const [imageIndex, setImageIndex] = useState(0);
   const [sizeError, setSizeError] = useState(false);
   const [guideOpen, setGuideOpen] = useState(false);
