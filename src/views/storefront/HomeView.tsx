@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 import { ArrowRight, Banknote, RotateCcw, Store, Truck } from 'lucide-react';
 import { useStore } from '../../context/StoreContext';
 import { Link } from '../../lib/router';
-import { usePageTitle } from '../../lib/hooks';
+import { isStoreOpenNow, usePageTitle } from '../../lib/hooks';
 import { formatPrice, totalStock } from '../../lib/format';
 import { STORE_CONFIG } from '../../data/storeConfig';
 import { CATEGORY_NAMES } from '../../data/catalog';
@@ -14,6 +14,8 @@ import { EmptyState } from '../../components/common/EmptyState';
 export const HomeView: React.FC = () => {
   usePageTitle();
   const { liveProducts } = useStore();
+  const { hero } = STORE_CONFIG;
+  const open = isStoreOpenNow();
 
   const categories = useMemo(
     () =>
@@ -41,24 +43,50 @@ export const HomeView: React.FC = () => {
   return (
     <div className="animate-fade-in space-y-10 pb-4 pt-4 sm:space-y-14 sm:pt-6">
       {/* Hero */}
+      {/* Phones: shop photo on top, text below. Larger screens: text panel beside the photo. */}
       <section className="page">
-        <div className="relative overflow-hidden rounded-2xl bg-ink">
-          <img
-            src={STORE_CONFIG.hero.image}
-            alt=""
-            className="absolute inset-0 h-full w-full object-cover object-[center_30%] opacity-80"
-            fetchPriority="high"
-          />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/40 to-black/10" />
-          <div className="relative flex min-h-[26rem] flex-col justify-end p-5 sm:min-h-[30rem] sm:p-10">
-            <p className="text-sm font-medium text-white/80">
-              {STORE_CONFIG.address.locality}, {STORE_CONFIG.address.city}
+        <div className="relative grid overflow-hidden rounded-2xl bg-brand-navy-dark md:grid-cols-2">
+          <div className="relative h-72 overflow-hidden sm:h-96 md:order-2 md:h-[34rem]">
+            <img
+              src={hero.image}
+              srcSet={`${hero.imageSmall} 720w, ${hero.image} 1088w`}
+              sizes="(min-width: 768px) 50vw, 100vw"
+              width={1088}
+              height={1445}
+              alt={`Inside the ${STORE_CONFIG.name} shop in ${STORE_CONFIG.address.locality}`}
+              fetchPriority="high"
+              className="absolute inset-0 h-full w-full animate-hero-photo object-cover object-[center_45%] will-change-transform md:object-[center_38%]"
+            />
+            <div
+              aria-hidden="true"
+              className="absolute inset-0 bg-gradient-to-t from-brand-navy/70 via-transparent via-40% to-transparent md:bg-gradient-to-r md:from-brand-navy-dark/50 md:via-transparent md:to-transparent"
+            />
+          </div>
+
+          <div className="flex flex-col justify-center bg-gradient-to-br from-brand-navy to-brand-navy-dark p-5 pb-6 sm:p-8 md:p-12 lg:p-14">
+            <p
+              className="inline-flex w-fit animate-hero-rise items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-[13px] font-medium text-white backdrop-blur-sm"
+              style={{ animationDelay: '150ms' }}
+            >
+              <span className={`h-2 w-2 rounded-full ${open ? 'bg-emerald-400' : 'bg-white/50'}`} />
+              {open ? 'Open now' : 'Closed now'} · {STORE_CONFIG.address.locality}, {STORE_CONFIG.address.city}
             </p>
-            <h1 className="mt-2 max-w-lg text-[2rem] font-bold leading-[1.1] tracking-tight text-white sm:text-5xl">
-              {STORE_CONFIG.hero.title}
+            <p className="mt-4 animate-hero-rise font-script text-2xl text-brand-gold-light sm:text-3xl" style={{ animationDelay: '300ms' }}>
+              {STORE_CONFIG.tagline}
+            </p>
+            <h1
+              className="mt-1 max-w-lg animate-hero-rise text-[2rem] font-bold leading-[1.1] tracking-tight text-white sm:text-5xl"
+              style={{ animationDelay: '420ms' }}
+            >
+              {hero.title}
             </h1>
-            <p className="mt-3 max-w-md text-[15px] leading-relaxed text-white/85 sm:text-base">{STORE_CONFIG.hero.subtitle}</p>
-            <div className="mt-6 flex flex-wrap gap-3">
+            <p
+              className="mt-3 max-w-md animate-hero-rise text-[15px] leading-relaxed text-white/85 sm:text-base"
+              style={{ animationDelay: '540ms' }}
+            >
+              {hero.subtitle}
+            </p>
+            <div className="mt-6 flex animate-hero-rise flex-wrap gap-3" style={{ animationDelay: '660ms' }}>
               <Link to="/shop" className="btn bg-white text-ink hover:bg-white/90">
                 Shop now
                 <ArrowRight size={18} />

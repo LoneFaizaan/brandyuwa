@@ -2,20 +2,48 @@ import React from 'react';
 import { STORE_CONFIG } from '../../data/storeConfig';
 
 export interface LogoProps {
-  /** If true, styles the logo with white and gold for dark backgrounds (e.g. Admin bar) */
+  /** White and gold text for dark backgrounds (e.g. the staff bar) */
   light?: boolean;
-  /** Optional suffix text, e.g. "Staff" */
+  /** Optional label after the name, e.g. "Staff" */
   suffix?: string;
-  /** Size variant */
   size?: 'sm' | 'md' | 'lg';
-  /** Whether to show the cursive "Run for fashion" tagline */
+  /** Show the "Run for fashion" tagline under the name */
   showTagline?: boolean;
-  /** Whether to show the circular/rounded monogram icon badge */
+  /** Show the round logo badge before the name */
   withBadge?: boolean;
-  /** Rendering mode: 'standard' (vector text+badge), 'image' (transparent PNG), 'badge-only' */
-  variant?: 'standard' | 'image' | 'badge-only';
+  /**
+   * 'standard'   round badge + name as text (sharp at any size)
+   * 'banner'     the wide logo image (brand-logo-cropped.png)
+   * 'badge-only' just the round badge
+   */
+  variant?: 'standard' | 'banner' | 'badge-only';
   className?: string;
 }
+
+const BADGE_SIZE = { sm: 'h-8 w-8', md: 'h-9 w-9', lg: 'h-12 w-12' };
+const BANNER_HEIGHT = { sm: 'h-10', md: 'h-14', lg: 'h-20' };
+const TITLE_SIZE = { sm: 'text-[15px]', md: 'text-[17px] sm:text-[18px]', lg: 'text-[22px]' };
+const TAGLINE_SIZE = { sm: 'text-[10px]', md: 'text-[11px] sm:text-[12px]', lg: 'text-[13px]' };
+
+const Badge: React.FC<{ size: 'sm' | 'md' | 'lg'; light: boolean; className?: string }> = ({ size, light, className = '' }) => (
+  <img
+    src={STORE_CONFIG.logos.round}
+    alt=""
+    width={48}
+    height={48}
+    className={`shrink-0 rounded-full object-cover ${light ? 'ring-1 ring-amber-400/50' : 'shadow-sm'} ${BADGE_SIZE[size]} ${className}`}
+  />
+);
+
+const SuffixTag: React.FC<{ light: boolean; children: React.ReactNode }> = ({ light, children }) => (
+  <span
+    className={`ml-2 rounded-md px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
+      light ? 'bg-amber-400/20 text-amber-300 ring-1 ring-amber-400/40' : 'bg-ink text-white'
+    }`}
+  >
+    {children}
+  </span>
+);
 
 export const Logo: React.FC<LogoProps> = ({
   light = false,
@@ -26,131 +54,44 @@ export const Logo: React.FC<LogoProps> = ({
   variant = 'standard',
   className = '',
 }) => {
-  // Image mode: renders the high-res transparent PNG asset
-  if (variant === 'image') {
-    const src = light
-      ? '/brand-logo-wordmark-white.png'
-      : '/brand-logo-wordmark.png';
-    const heightClass =
-      size === 'sm' ? 'h-7' : size === 'lg' ? 'h-11' : 'h-9';
+  const label = `${STORE_CONFIG.name} — ${STORE_CONFIG.tagline}`;
 
+  if (variant === 'banner') {
     return (
-      <span className={`inline-flex items-center gap-2 select-none ${className}`}>
-        <img
-          src={src}
-          alt={`${STORE_CONFIG.name} — ${STORE_CONFIG.tagline}`}
-          className={`${heightClass} w-auto object-contain`}
-        />
-        {suffix && (
-          <span
-            className={`rounded-md px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
-              light
-                ? 'bg-amber-400/20 text-amber-300 ring-1 ring-amber-400/40'
-                : 'bg-ink text-white'
-            }`}
-          >
-            {suffix}
-          </span>
-        )}
-      </span>
+      <img
+        src={STORE_CONFIG.logos.banner}
+        alt={label}
+        width={824}
+        height={360}
+        className={`w-auto select-none rounded-xl object-contain ${BANNER_HEIGHT[size]} ${className}`}
+      />
     );
   }
 
-  // Sizing definitions
-  const badgeSize =
-    size === 'sm'
-      ? 'h-8 w-8 text-xs'
-      : size === 'lg'
-      ? 'h-11 w-11 text-base'
-      : 'h-9 w-9 text-xs sm:text-sm';
-
-  const titleSize =
-    size === 'sm'
-      ? 'text-[15px]'
-      : size === 'lg'
-      ? 'text-[22px]'
-      : 'text-[17px] sm:text-[18px]';
-
-  const taglineSize =
-    size === 'sm'
-      ? 'text-[10px]'
-      : size === 'lg'
-      ? 'text-[13px]'
-      : 'text-[11px] sm:text-[12px]';
-
-  // Badge-only variant
   if (variant === 'badge-only') {
     return (
-      <span
-        className={`relative inline-flex shrink-0 items-center justify-center rounded-xl font-bold tracking-tight shadow-sm select-none ${
-          light
-            ? 'bg-gradient-to-br from-[#102754] via-[#091b3d] to-[#040e24] ring-1 ring-amber-400/40'
-            : 'bg-gradient-to-br from-[#0c224e] via-[#081836] to-[#040c1c] ring-1 ring-[#cca038]/30 shadow-brand-navy/10'
-        } ${badgeSize} ${className}`}
-        aria-label={`${STORE_CONFIG.name} logo`}
-      >
-        <span className="text-white">B</span>
-        <span className="text-[#cca038]">Y</span>
+      <span className={`inline-flex ${className}`} role="img" aria-label={label}>
+        <Badge size={size} light={light} />
       </span>
     );
   }
 
   return (
-    <span
-      className={`inline-flex items-center gap-2.5 select-none ${className}`}
-      aria-label={`${STORE_CONFIG.name} — ${STORE_CONFIG.tagline}`}
-    >
-      {withBadge && (
-        <span
-          className={`relative flex shrink-0 items-center justify-center rounded-xl font-black tracking-tight shadow-sm transition-transform ${
-            light
-              ? 'bg-gradient-to-br from-[#102754] via-[#091b3d] to-[#040e24] ring-1 ring-amber-400/40 text-white'
-              : 'bg-gradient-to-br from-[#0c224e] via-[#081836] to-[#040c1c] ring-1 ring-[#cca038]/30 text-white shadow-brand-navy/15'
-          } ${badgeSize}`}
-          aria-hidden="true"
-        >
-          <span className="text-white">B</span>
-          <span className="text-[#cca038] ml-0.5">Y</span>
+    <span className={`inline-flex select-none items-center gap-2.5 ${className}`} role="img" aria-label={label}>
+      {withBadge && <Badge size={size} light={light} />}
+      <span className="flex flex-col justify-center text-left leading-none">
+        <span className={`flex items-baseline font-sans font-extrabold uppercase tracking-[0.06em] ${TITLE_SIZE[size]}`}>
+          <span className={light ? 'text-white' : 'text-brand-navy'}>BRAND&nbsp;</span>
+          <span className={light ? 'text-brand-gold-light' : 'text-brand-gold'}>Y</span>
+          <span className={light ? 'text-white' : 'text-brand-navy'}>UVA</span>
+          {suffix && <SuffixTag light={light}>{suffix}</SuffixTag>}
         </span>
-      )}
-
-      <div className="flex flex-col justify-center leading-none text-left">
-        <div
-          className={`flex items-baseline font-extrabold tracking-[0.06em] uppercase font-sans ${titleSize}`}
-        >
-          <span className={light ? 'text-white' : 'text-[#0b2158]'}>
-            BRAND&nbsp;
-          </span>
-          <span className={light ? 'text-[#e5b842]' : 'text-[#cca038]'}>
-            Y
-          </span>
-          <span className={light ? 'text-white' : 'text-[#0b2158]'}>
-            UVA
-          </span>
-
-          {suffix && (
-            <span
-              className={`ml-2 rounded-md px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
-                light
-                  ? 'bg-amber-400/20 text-amber-300 ring-1 ring-amber-400/40'
-                  : 'bg-ink text-white'
-              }`}
-            >
-              {suffix}
-            </span>
-          )}
-        </div>
-
         {showTagline && (
-          <span
-            className={`font-script italic tracking-wider mt-0.5 ${taglineSize} ${
-              light ? 'text-slate-300/90' : 'text-[#143160]'
-            }`}
-          >
+          <span className={`mt-0.5 font-script italic tracking-wider ${TAGLINE_SIZE[size]} ${light ? 'text-slate-300/90' : 'text-[#143160]'}`}>
             {STORE_CONFIG.tagline}
           </span>
         )}
-      </div>
+      </span>
     </span>
   );
 };

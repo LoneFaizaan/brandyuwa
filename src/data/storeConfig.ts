@@ -8,17 +8,23 @@ export const STORE_CONFIG = {
   name: 'Brand Yuva',
   tagline: 'Run for fashion',
   shortName: 'BY',
-  logoUrl: '/brand-logo.svg',
-  logoDarkUrl: '/brand-logo-light.svg',
-  logoFullUrl: '/brand-logo-full.png',
-  logoRoundUrl: '/brand-logo-round.png',
-  logoTransparentUrl: '/brand-logo-transparent.png',
+  /** Brand logos in /public */
+  logos: {
+    /** Round badge — header, favicon */
+    round: '/brand-logo-round.png',
+    /** Wide "Brand Yuva · Run for fashion" banner — footer, staff login */
+    banner: '/brand-logo-cropped.png',
+    /** Square — phone home-screen icon and link previews */
+    square: '/brand-logo-full.png',
+  },
   description: "Men's clothing store in Drugmulla, Kupwara.",
 
   hero: {
     title: 'Everyday clothes for men',
     subtitle: 'Shirts, t-shirts, jeans, trousers and jackets. Order online or visit us in Drugmulla, Kupwara.',
-    image: 'https://images.unsplash.com/photo-1516257984-b1b4d707412e?auto=format&fit=crop&w=1400&q=75',
+    /** Photo of the shop. A smaller copy is used on phones to save data. */
+    image: '/store-hero.webp',
+    imageSmall: '/store-hero-720.webp',
   },
 
   address: {
@@ -33,10 +39,10 @@ export const STORE_CONFIG = {
 
   contact: {
     /** 10-digit Indian mobile number, digits only */
-    phone: '7006452199',
+    phone: '9797064286',
     /** WhatsApp number, digits only (usually the same as phone) */
-    whatsapp: '7006452199',
-    email: 'care@brandyuva.com',
+    whatsapp: '9797064286',
+    email: 'lonemehraj45@gmail.com',
   },
 
   /** 24-hour clock, India time. */

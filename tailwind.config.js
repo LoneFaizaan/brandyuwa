@@ -52,12 +52,27 @@ export default {
           '50%': { transform: 'scale(1.2)' },
           '100%': { transform: 'scale(1)' },
         },
+        // Hero photo: eases in from a slight zoom, then drifts slowly
+        'hero-in': {
+          from: { transform: 'scale(1.14)' },
+          to: { transform: 'scale(1)' },
+        },
+        'ken-burns': {
+          from: { transform: 'scale(1) translate3d(0, 0, 0)' },
+          to: { transform: 'scale(1.08) translate3d(-1.5%, -1%, 0)' },
+        },
+        'hero-rise': {
+          from: { opacity: '0', transform: 'translateY(18px)' },
+          to: { opacity: '1', transform: 'translateY(0)' },
+        },
       },
       animation: {
         'fade-in': 'fade-in 200ms ease-out both',
         rise: 'rise 200ms ease-out both',
         'sheet-up': 'sheet-up 260ms cubic-bezier(0.32, 0.72, 0, 1) both',
         pop: 'pop 250ms ease-out',
+        'hero-photo': 'hero-in 1.8s cubic-bezier(0.22, 1, 0.36, 1) both, ken-burns 20s ease-in-out 1.8s infinite alternate',
+        'hero-rise': 'hero-rise 0.8s cubic-bezier(0.22, 1, 0.36, 1) both',
       },
     },
   },
