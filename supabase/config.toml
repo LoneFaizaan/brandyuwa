@@ -12,14 +12,12 @@ otp_expiry = 600
 enabled = true
 uri = "pg-functions://postgres/public/hook_before_user_created"
 
-# The login emails must contain the code ({{ .Token }}), not a link. Supabase only allows
-# editing email templates once a custom SMTP sender is set up (Dashboard → Authentication →
-# Emails → SMTP Settings). After that, uncomment these two blocks and run `npx supabase config push`.
-#
-# [auth.email.template.magic_link]
-# subject = "Your Brand Yuva staff login code"
-# content_path = "./supabase/templates/staff-login-code.html"
-#
-# [auth.email.template.confirmation]
-# subject = "Your Brand Yuva staff login code"
-# content_path = "./supabase/templates/staff-login-code.html"
+# Supabase Auth never sends an email itself: login codes are sent only by the staff-login
+# Edge Function, after it has checked the staff password.
+[auth.hook.send_email]
+enabled = true
+uri = "pg-functions://postgres/public/hook_send_email"
+
+# Called by the login page before anyone is logged in
+[functions.staff-login]
+verify_jwt = false

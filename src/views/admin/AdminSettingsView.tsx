@@ -14,6 +14,7 @@ export const AdminSettingsView: React.FC = () => {
     products,
     orders,
     staffEmail,
+    changeStaffPassword,
     staffLogout,
     restoreBackup,
     backendStatus,
@@ -25,9 +26,26 @@ export const AdminSettingsView: React.FC = () => {
   const fileRef = useRef<HTMLInputElement>(null);
 
   const [syncing, setSyncing] = useState(false);
+  const [current, setCurrent] = useState('');
+  const [next, setNext] = useState('');
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [savingPassword, setSavingPassword] = useState(false);
 
   const used = usedBytes();
   const usedPercent = Math.min(100, Math.round((used / STORAGE_LIMIT_BYTES) * 100));
+
+  const changePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSavingPassword(true);
+    const err = await changeStaffPassword(current, next);
+    setSavingPassword(false);
+    setPasswordError(err);
+    if (!err) {
+      setCurrent('');
+      setNext('');
+      showToast('Password changed');
+    }
+  };
 
   const handleSyncNow = async () => {
     setSyncing(true);
@@ -148,10 +166,43 @@ export const AdminSettingsView: React.FC = () => {
             Logged in as <strong className="break-all font-semibold text-ink">{staffEmail}</strong>
           </p>
           <p className="hint">
-            Staff log in with a code sent to their email. To give someone access or take it away, ask the person who set up this
-            website to update the staff list in Supabase.
+            Staff log in with their password and then a code sent to their email. To give someone access or take it away, ask the
+            person who set up this website to update the staff list in Supabase.
           </p>
         </section>
+
+        {/* Change password */}
+        <form onSubmit={changePassword} className="card p-5" noValidate>
+          <h2 className="text-[17px] font-semibold">Change password</h2>
+          <label htmlFor="current-password" className="label mt-4">
+            Current password
+          </label>
+          <input
+            id="current-password"
+            type="password"
+            autoComplete="current-password"
+            value={current}
+            onChange={(e) => setCurrent(e.target.value)}
+            className="field"
+          />
+
+          <label htmlFor="new-password" className="label mt-4">
+            New password
+          </label>
+          <input
+            id="new-password"
+            type="password"
+            autoComplete="new-password"
+            value={next}
+            onChange={(e) => setNext(e.target.value)}
+            className="field"
+          />
+          <p className="hint">At least 8 characters. Only changes your own password.</p>
+          {passwordError && <p className="error-text">{passwordError}</p>}
+          <button type="submit" className="btn btn-primary mt-4 w-full sm:w-auto" disabled={!current || !next || savingPassword}>
+            {savingPassword ? 'Saving…' : 'Change password'}
+          </button>
+        </form>
 
         {/* Backup & Export */}
         <section className="card p-5">

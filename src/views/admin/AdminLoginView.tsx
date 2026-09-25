@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { LoaderCircle } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
+import { Eye, EyeOff, LoaderCircle } from 'lucide-react';
 import { useStore } from '../../context/StoreContext';
 import { Link } from '../../lib/router';
 import { usePageTitle } from '../../lib/hooks';
@@ -37,13 +37,17 @@ export const AdminLoginView: React.FC = () => {
   const { requestStaffCode, verifyStaffCode } = useStore();
   const [pending] = useState(loadPending);
   const [email, setEmail] = useState(pending?.email ?? '');
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [sentAt, setSentAt] = useState<number | null>(pending?.sentAt ?? null);
   const [code, setCode] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [now, setNow] = useState(Date.now());
+  // Kept in memory only, so "Resend code" doesn't ask for the password again
+  const passwordRef = useRef('');
 
-  const step = sentAt === null ? 'email' : 'code';
+  const step = sentAt === null ? 'password' : 'code';
   const resendIn = sentAt === null ? 0 : Math.max(0, Math.ceil((sentAt + RESEND_AFTER_S * 1000 - now) / 1000));
 
   useEffect(() => {
@@ -52,26 +56,45 @@ export const AdminLoginView: React.FC = () => {
     return () => window.clearTimeout(t);
   }, [resendIn, now]);
 
-  const sendCode = async () => {
+  const sendCode = async (pw: string) => {
     setBusy(true);
-    const err = await requestStaffCode(email);
+    const err = await requestStaffCode(email, pw);
     setBusy(false);
     setError(err);
     if (err) return;
+    passwordRef.current = pw;
     const at = Date.now();
     setSentAt(at);
     setNow(at);
     setCode('');
+    setPassword('');
     savePending({ email: email.trim().toLowerCase(), sentAt: at });
   };
 
-  const submitEmail = (e: React.FormEvent) => {
+  const submitPassword = (e: React.FormEvent) => {
     e.preventDefault();
     if (!isEmail(email)) {
       setError('Please enter a valid email address.');
       return;
     }
-    sendCode();
+    if (!password) {
+      setError('Please enter your password.');
+      return;
+    }
+    sendCode(password);
+  };
+
+  const startOver = (message: string | null = null) => {
+    setSentAt(null);
+    setCode('');
+    setError(message);
+    savePending(null);
+  };
+
+  // After a page reload the password is gone, so ask for it again
+  const resend = () => {
+    if (passwordRef.current) sendCode(passwordRef.current);
+    else startOver('Enter your password again to get a new code.');
   };
 
   const submitCode = async (e: React.FormEvent) => {
@@ -88,13 +111,6 @@ export const AdminLoginView: React.FC = () => {
     else savePending(null);
   };
 
-  const changeEmail = () => {
-    setSentAt(null);
-    setCode('');
-    setError(null);
-    savePending(null);
-  };
-
   return (
     <div className="flex min-h-[100dvh] flex-col items-center justify-center bg-soft px-4 py-10">
       <div className="w-full max-w-sm">
@@ -102,10 +118,10 @@ export const AdminLoginView: React.FC = () => {
           <Logo variant="banner" size="lg" />
         </div>
 
-        {step === 'email' ? (
-          <form onSubmit={submitEmail} className="card p-6" noValidate>
+        {step === 'password' ? (
+          <form onSubmit={submitPassword} className="card p-6" noValidate>
             <h1 className="text-xl font-bold">Staff login</h1>
-            <p className="mt-1 text-[15px] text-muted">We'll email you a code to log in.</p>
+            <p className="mt-1 text-[15px] text-muted">Enter your email and password. We'll then email you a code to finish logging in.</p>
 
             <label htmlFor="staff-email" className="label mt-6">
               Email
@@ -119,14 +135,42 @@ export const AdminLoginView: React.FC = () => {
                 setEmail(e.target.value);
                 setError(null);
               }}
-              autoComplete="email"
+              autoComplete="username"
               autoCapitalize="none"
               spellCheck={false}
-              autoFocus
+              autoFocus={!email}
               className={`field ${error ? 'field-error' : ''}`}
               aria-invalid={!!error}
               aria-describedby={error ? 'staff-login-error' : undefined}
             />
+
+            <label htmlFor="staff-password" className="label mt-4">
+              Password
+            </label>
+            <div className="relative">
+              <input
+                id="staff-password"
+                type={showPassword ? 'text' : 'password'}
+                value={password}
+                onChange={(e) => {
+                  setPassword(e.target.value);
+                  setError(null);
+                }}
+                autoComplete="current-password"
+                autoFocus={!!email}
+                className={`field pr-12 ${error ? 'field-error' : ''}`}
+                aria-invalid={!!error}
+                aria-describedby={error ? 'staff-login-error' : undefined}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((s) => !s)}
+                className="absolute right-1 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-lg text-muted hover:text-ink"
+                aria-label={showPassword ? 'Hide password' : 'Show password'}
+              >
+                {showPassword ? <EyeOff size={19} /> : <Eye size={19} />}
+              </button>
+            </div>
             {error && (
               <p id="staff-login-error" className="error-text" role="alert">
                 {error}
@@ -135,9 +179,9 @@ export const AdminLoginView: React.FC = () => {
 
             <button type="submit" className="btn btn-primary mt-5 w-full" disabled={busy}>
               {busy && <LoaderCircle size={18} className="animate-spin" />}
-              {busy ? 'Sending…' : 'Send login code'}
+              {busy ? 'Checking…' : 'Continue'}
             </button>
-            <p className="mt-4 text-sm text-muted">Only staff emails can log in. Ask the person who set up this website to add yours.</p>
+            <p className="mt-4 text-sm text-muted">Forgot your password? Ask the person who set up this website to reset it.</p>
           </form>
         ) : (
           <form onSubmit={submitCode} className="card p-6" noValidate>
@@ -178,12 +222,12 @@ export const AdminLoginView: React.FC = () => {
             </button>
 
             <div className="mt-4 flex items-center justify-between gap-3 text-sm">
-              <button type="button" onClick={changeEmail} className="font-medium text-muted hover:text-ink">
-                Use a different email
+              <button type="button" onClick={() => startOver()} className="font-medium text-muted hover:text-ink">
+                Start over
               </button>
               <button
                 type="button"
-                onClick={sendCode}
+                onClick={resend}
                 disabled={busy || resendIn > 0}
                 className="font-semibold text-ink hover:underline disabled:font-medium disabled:text-muted disabled:no-underline"
               >

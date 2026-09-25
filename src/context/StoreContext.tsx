@@ -32,6 +32,8 @@ import {
   updateOrderPaidDb,
   deleteOrderDb,
   checkIsStaff,
+  requestStaffLoginCode,
+  changeStaffPasswordDb,
 } from '../lib/supabase';
 
 /* ───────────────────────── Types ───────────────────────── */
@@ -94,13 +96,14 @@ interface StoreContextValue {
   deleteOrder: (id: string) => Promise<void>;
   savedCustomer: CustomerDetails | null;
 
-  // Staff (Supabase email OTP; the database decides who is staff)
+  // Staff (password, then a code emailed by Supabase; the database decides who is staff)
   isStaff: boolean;
   /** True while a saved login is being checked */
   staffLoading: boolean;
   staffEmail: string | null;
-  requestStaffCode: (email: string) => Promise<string | null>;
+  requestStaffCode: (email: string, password: string) => Promise<string | null>;
   verifyStaffCode: (email: string, code: string) => Promise<string | null>;
+  changeStaffPassword: (current: string, next: string) => Promise<string | null>;
   staffLogout: () => Promise<void>;
   restoreBackup: (data: unknown) => string | null;
 
@@ -127,10 +130,7 @@ export const lineKey = (l: Pick<CartLine, 'productId' | 'size' | 'color'>) => `$
 
 function authErrorMessage(error: AuthError) {
   if (error.code === 'otp_expired') return 'This code is wrong or has expired. Check it or send a new one.';
-  if (error.status === 429 || error.code?.startsWith('over_')) return 'Too many login emails sent. Please wait a few minutes and try again.';
-  if (error.status === 403 || error.code === 'signup_disabled' || error.code === 'otp_disabled') return 'This email does not have staff access.';
-  // Supabase's built-in sender only mails the project's own team until a custom SMTP sender is set up
-  if (error.code === 'email_address_not_authorized') return 'The login email could not be sent. Ask the person who set up this website to finish the email setup.';
+  if (error.status === 429 || error.code?.startsWith('over_')) return 'Too many tries. Please wait a few minutes and try again.';
   if (error.name === 'AuthRetryableFetchError') return 'Could not connect. Check your internet and try again.';
   return error.message || 'Something went wrong. Please try again.';
 }
@@ -656,15 +656,24 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   /* ── Staff ── */
 
-  // Supabase refuses to send a code to any email that isn't on the staff list
-  const requestStaffCode = useCallback(async (email: string) => {
-    const { error } = await supabase.auth.signInWithOtp({ email: email.trim().toLowerCase() });
-    return error ? authErrorMessage(error) : null;
-  }, []);
+  // The server emails a code only for a staff email with the right password
+  const requestStaffCode = useCallback(
+    (email: string, password: string) => requestStaffLoginCode(email.trim().toLowerCase(), password),
+    [],
+  );
 
   const verifyStaffCode = useCallback(async (email: string, code: string) => {
     const { error } = await supabase.auth.verifyOtp({ email: email.trim().toLowerCase(), token: code.trim(), type: 'email' });
     return error ? authErrorMessage(error) : null;
+  }, []);
+
+  const changeStaffPassword = useCallback(async (current: string, next: string) => {
+    if (next.length < 8) return 'The new password needs at least 8 characters.';
+    const result = await changeStaffPasswordDb(current, next);
+    if (result === 'ok') return null;
+    if (result === 'invalid') return 'Your current password is not correct.';
+    if (result === 'too_short') return 'The new password needs at least 8 characters.';
+    return 'Could not save. Check your internet and try again.';
   }, []);
 
   // 'local' ends this device's login only, not the same staff member's other devices
@@ -730,6 +739,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     staffEmail,
     requestStaffCode,
     verifyStaffCode,
+    changeStaffPassword,
     staffLogout,
     restoreBackup,
     backendStatus,

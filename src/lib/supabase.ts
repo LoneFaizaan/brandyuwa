@@ -314,6 +314,41 @@ export async function deleteOrderDb(id: string): Promise<boolean> {
 
 /* ───────────────────────── Staff ───────────────────────── */
 
+/**
+ * Staff login step 1: the staff-login Edge Function checks the email + password and, only if
+ * they're right, emails a login code. Returns an error message, or null when the code was sent.
+ */
+export async function requestStaffLoginCode(email: string, password: string): Promise<string | null> {
+  try {
+    const { data, error } = await supabase.functions.invoke<{ sent?: true; error?: string }>('staff-login', {
+      body: { email, password },
+    });
+    if (error) {
+      console.warn('Supabase staff-login error:', error);
+      return 'Could not connect. Check your internet and try again.';
+    }
+    return data?.sent ? null : data?.error || 'Something went wrong. Please try again.';
+  } catch (err) {
+    console.warn('Supabase staff-login exception:', err);
+    return 'Could not connect. Check your internet and try again.';
+  }
+}
+
+/** Returns 'ok', 'invalid' (wrong current password), 'too_short', or null when it could not run */
+export async function changeStaffPasswordDb(current: string, next: string): Promise<string | null> {
+  try {
+    const { data, error } = await supabase.rpc('change_staff_password', { p_current: current, p_new: next });
+    if (error) {
+      console.warn('Supabase changeStaffPassword error:', error);
+      return null;
+    }
+    return data as string;
+  } catch (err) {
+    console.warn('Supabase changeStaffPassword exception:', err);
+    return null;
+  }
+}
+
 /** Asks the database whether the signed-in email is on the staff list. null when the check could not run. */
 export async function checkIsStaff(): Promise<boolean | null> {
   try {

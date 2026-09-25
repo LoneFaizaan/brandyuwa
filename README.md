@@ -32,41 +32,64 @@ Payment is cash on delivery, pay at the shop (for pickup), or UPI if `payments.u
 
 ## Staff area
 
-Open `/#/admin` (or tap **Staff login** in the footer), enter a staff email and type in the
-6-digit code Supabase emails to it (valid for 10 minutes).
+Open `/#/admin` (or tap **Staff login** in the footer), enter a staff email and password, then
+type in the 6-digit code that is emailed to you (valid for 10 minutes).
 
 - **Products**: add or edit a product with photos from the phone camera, a price, sizes and stock.
 - **Stock**: tap + / − when stock arrives or sells in the shop.
 - **Orders**: move orders through Packed → Shipped/Ready → Delivered, and message the customer.
-- **Settings**: see who is logged in, download or restore a backup.
+- **Settings**: see who is logged in, change your password, download or restore a backup.
 
-### Who can log in
+### How staff login works
 
-Staff access is checked by Supabase, not the browser
-(`supabase/migrations/20260925120000_staff_email_otp.sql`):
+Everything is checked by Supabase, not the browser (`supabase/migrations/2026092512*` –
+`2026092515*`, `supabase/functions/staff-login`):
 
-- Only emails in the `public.staff_members` table can log in. A Supabase Auth hook refuses to
-  create an account (or send a code) for any other email.
-- Database policies allow changes to products, orders and product photos only for a logged-in
-  staff email. Customers can read published products, place orders through `place_order()`,
-  and look up their own orders by order number + phone through `get_my_orders()`.
+1. The `staff-login` Edge Function checks the email + password against `public.staff_members`
+   (bcrypt; 5 wrong tries lock that email for 15 minutes). Only then does it have Supabase Auth
+   create a login code and email it through your SMTP account (one code a minute at most).
+2. The app signs in with that code (`supabase.auth.verifyOtp`).
 
-To add or remove staff, edit the table in the Supabase dashboard (Table Editor →
-`staff_members`, emails in lowercase) or run SQL:
+Supabase Auth never sends an email by itself (its send-email hook refuses them all), and it
+won't create an account for any email that isn't in `staff_members`. So nobody can make it email
+the staff, or anyone else, without a staff password.
+
+Database policies allow changes to products, orders and product photos only for a logged-in staff
+email. Customers can read published products, place orders through `place_order()`, and look up
+their own orders by order number + phone through `get_my_orders()`.
+
+### Setting up staff
+
+Run these in the Supabase dashboard → SQL Editor.
+
+Set or reset a password (at least 8 characters):
+
+```sql
+select public.set_staff_password('someone@gmail.com', 'their new password');
+```
+
+Add or remove staff (emails in lowercase):
 
 ```sql
 insert into public.staff_members (email) values ('new.person@gmail.com');
 delete from public.staff_members where email = 'old.person@gmail.com';
 ```
 
-Auth settings (code length, expiry, the hook, email templates) live in `supabase/config.toml`
-and are applied with `npx supabase config push`.
+### Login emails
 
-**Email sending:** Supabase's built-in sender only mails members of the Supabase team (about 2
-emails an hour), and on the free plan it won't let the login email show a code. Set up a custom
-SMTP sender (Dashboard → Authentication → Emails → SMTP Settings, e.g. Brevo, Resend or a Gmail
-app password), then uncomment the template blocks in `supabase/config.toml` and run
-`npx supabase config push`.
+The login code is sent from an email account you own, over SMTP. With Gmail: turn on 2-Step
+Verification for the sending account, create an **app password**
+(Google Account → Security → App passwords), then run:
+
+```bash
+npx supabase secrets set SMTP_USER=shop.account@gmail.com SMTP_PASS="the 16-letter app password"
+```
+
+Another provider works too: also set `SMTP_HOST` and `SMTP_PORT` (port 465).
+
+Auth settings (code length and expiry, the two auth hooks) live in `supabase/config.toml` and
+are applied with `npx supabase config push`. After changing the function, deploy it with
+`npx supabase functions deploy staff-login --use-api`.
 
 ## Important: what needs a backend
 
