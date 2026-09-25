@@ -10,7 +10,7 @@ import { StatusBadge } from '../../components/storefront/OrderProgress';
 
 export const MyOrdersView: React.FC = () => {
   usePageTitle('My orders');
-  const { orders } = useStore();
+  const { myOrders: orders } = useStore();
 
   return (
     <div className="page max-w-2xl animate-fade-in py-5 md:py-8">

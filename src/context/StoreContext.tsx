@@ -1,4 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import type { AuthError, Session } from '@supabase/supabase-js';
 import type {
   Address,
   CartItem,
@@ -15,7 +16,6 @@ import type {
 import { STORE_CONFIG } from '../data/storeConfig';
 import { KEYS, load, remove, save } from '../lib/storage';
 import { calcTotals } from '../lib/pricing';
-import { sha256 } from '../lib/sha256';
 import { useRouter } from '../lib/router';
 import {
   supabase,
@@ -25,10 +25,13 @@ import {
   deleteProductDb,
   updateProductStockDb,
   fetchOrdersFromDb,
+  fetchMyOrdersFromDb,
   insertOrderDb,
+  placeOrderDb,
   updateOrderStatusDb,
   updateOrderPaidDb,
   deleteOrderDb,
+  checkIsStaff,
 } from '../lib/supabase';
 
 /* ───────────────────────── Types ───────────────────────── */
@@ -80,7 +83,10 @@ interface StoreContextValue {
   toggleSaved: (id: string) => void;
 
   // Orders
+  /** Every order in the shop. Only loaded for signed-in staff. */
   orders: Order[];
+  /** Orders placed on this device */
+  myOrders: Order[];
   getOrder: (id: string) => Order | undefined;
   placeOrder: (input: PlaceOrderInput) => Order | null;
   setOrderStatus: (id: string, status: OrderStatus) => void;
@@ -88,11 +94,14 @@ interface StoreContextValue {
   deleteOrder: (id: string) => Promise<void>;
   savedCustomer: CustomerDetails | null;
 
-  // Staff
+  // Staff (Supabase email OTP; the database decides who is staff)
   isStaff: boolean;
-  staffLogin: (password: string) => string | null;
-  staffLogout: () => void;
-  changeStaffPassword: (current: string, next: string) => string | null;
+  /** True while a saved login is being checked */
+  staffLoading: boolean;
+  staffEmail: string | null;
+  requestStaffCode: (email: string) => Promise<string | null>;
+  verifyStaffCode: (email: string, code: string) => Promise<string | null>;
+  staffLogout: () => Promise<void>;
   restoreBackup: (data: unknown) => string | null;
 
   // Backend / Cloud
@@ -116,9 +125,15 @@ const StoreContext = createContext<StoreContextValue | null>(null);
 
 export const lineKey = (l: Pick<CartLine, 'productId' | 'size' | 'color'>) => `${l.productId}|${l.size}|${l.color ?? ''}`;
 
-const STAFF_SESSION_DAYS = 30;
-const MAX_LOGIN_TRIES = 5;
-const LOCKOUT_MS = 60_000;
+function authErrorMessage(error: AuthError) {
+  if (error.code === 'otp_expired') return 'This code is wrong or has expired. Check it or send a new one.';
+  if (error.status === 429 || error.code?.startsWith('over_')) return 'Too many login emails sent. Please wait a few minutes and try again.';
+  if (error.status === 403 || error.code === 'signup_disabled' || error.code === 'otp_disabled') return 'This email does not have staff access.';
+  // Supabase's built-in sender only mails the project's own team until a custom SMTP sender is set up
+  if (error.code === 'email_address_not_authorized') return 'The login email could not be sent. Ask the person who set up this website to finish the email setup.';
+  if (error.name === 'AuthRetryableFetchError') return 'Could not connect. Check your internet and try again.';
+  return error.message || 'Something went wrong. Please try again.';
+}
 
 function loadInitialProducts(): Product[] {
   const stored = load<Product[]>(KEYS.products);
@@ -200,22 +215,76 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const liveProducts = useMemo(() => products.filter((p) => p.published), [products]);
   const getProduct = useCallback((id: string) => products.find((p) => p.id === id), [products]);
 
-  /* Orders — cached locally and synchronized with Supabase */
-  const [orders, setOrders] = useState<Order[]>(() => load<Order[]>(KEYS.orders) ?? []);
+  /* Orders placed on this device — refreshed from Supabase by order number + phone */
+  const [myOrders, setMyOrders] = useState<Order[]>(() => load<Order[]>(KEYS.myOrders) ?? []);
+  const myOrdersRef = useRef(myOrders);
+  const persistMyOrders = useCallback((next: Order[]) => {
+    myOrdersRef.current = next;
+    setMyOrders(next);
+    save(KEYS.myOrders, next);
+  }, []);
+
+  /* Every shop order — staff only, cached locally and synchronized with Supabase */
+  const [orders, setOrders] = useState<Order[]>(() => load<Order[]>(KEYS.staffOrders) ?? []);
   const ordersRef = useRef(orders);
   const persistOrders = useCallback((next: Order[]) => {
     ordersRef.current = next;
     setOrders(next);
-    save(KEYS.orders, next);
+    save(KEYS.staffOrders, next);
   }, []);
 
+  /* Staff session — Supabase Auth keeps the login; the database decides who is staff */
+  const [session, setSession] = useState<Session | null>(null);
+  const [sessionLoaded, setSessionLoaded] = useState(false);
+  const [staffCheck, setStaffCheck] = useState<{ userId: string; ok: boolean } | null>(null);
+
+  useEffect(() => {
+    const { data } = supabase.auth.onAuthStateChange((_event, next) => {
+      setSession(next);
+      setSessionLoaded(true);
+    });
+    return () => data.subscription.unsubscribe();
+  }, []);
+
+  const userId = session?.user.id ?? null;
+  useEffect(() => {
+    if (!userId) return;
+    let cancelled = false;
+    checkIsStaff().then((ok) => {
+      if (cancelled) return;
+      if (ok === false) {
+        void supabase.auth.signOut({ scope: 'local' });
+        showToast('This email does not have staff access.', 'error');
+      }
+      // When the check can't run (offline), keep showing the staff screens.
+      // This only affects what is shown: the database still refuses changes from non-staff.
+      setStaffCheck({ userId, ok: ok !== false });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [userId, showToast]);
+
+  const staffChecked = !!userId && staffCheck?.userId === userId;
+  const isStaff = staffChecked && !!staffCheck?.ok;
+  const staffLoading = !sessionLoaded || (!!userId && !staffChecked);
+  const staffEmail = isStaff ? (session?.user.email ?? null) : null;
+  const isStaffRef = useRef(isStaff);
+  useEffect(() => {
+    isStaffRef.current = isStaff;
+  }, [isStaff]);
+
   /* Synchronize from Supabase */
+  const refreshSeq = useRef(0);
   const refreshBackendData = useCallback(async () => {
+    const seq = ++refreshSeq.current;
     try {
       const [remoteProducts, remoteOrders] = await Promise.all([
         fetchProductsFromDb(),
-        fetchOrdersFromDb(),
+        isStaff ? fetchOrdersFromDb() : fetchMyOrdersFromDb(myOrdersRef.current),
       ]);
+      // A newer refresh started meanwhile (e.g. after logging in or out); its data wins
+      if (seq !== refreshSeq.current) return;
 
       if (remoteProducts !== null) {
         productsRef.current = remoteProducts;
@@ -224,9 +293,8 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       }
 
       if (remoteOrders !== null) {
-        ordersRef.current = remoteOrders;
-        setOrders(remoteOrders);
-        save(KEYS.orders, remoteOrders);
+        if (isStaff) persistOrders(remoteOrders);
+        else persistMyOrders(myOrdersRef.current.map((o) => remoteOrders.find((r) => r.id === o.id) ?? o));
       }
 
       setBackendStatus('connected');
@@ -234,12 +302,18 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       console.warn('Backend sync failed:', err);
       setBackendStatus('offline');
     }
-  }, []);
+  }, [isStaff, persistOrders, persistMyOrders]);
 
-  /* Initial mount and real-time synchronization */
+  /* Load once the saved login has been checked, and again whenever staff log in or out */
   useEffect(() => {
+    if (staffLoading) return;
+    // Shop orders hold customers' phone numbers and addresses: don't keep them after logout
+    if (!isStaff && ordersRef.current.length > 0) persistOrders([]);
     refreshBackendData();
+  }, [staffLoading, isStaff, refreshBackendData, persistOrders]);
 
+  /* Real-time synchronization */
+  useEffect(() => {
     if (!isSupabaseConfigured) {
       setBackendStatus('offline');
       return;
@@ -263,12 +337,10 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         'postgres_changes',
         { event: '*', schema: 'public', table: 'orders' },
         async () => {
+          // Only staff are sent order changes
+          if (!isStaffRef.current) return;
           const remote = await fetchOrdersFromDb();
-          if (remote !== null) {
-            ordersRef.current = remote;
-            setOrders(remote);
-            save(KEYS.orders, remote);
-          }
+          if (remote !== null && isStaffRef.current) persistOrders(remote);
         }
       )
       .subscribe((status) => {
@@ -282,7 +354,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [refreshBackendData]);
+  }, [persistOrders]);
 
   /* Bag, saved items, coupon, customer details */
   const [cartLines, setCartLines] = useState<CartLine[]>(() => load<CartLine[]>(KEYS.cart) ?? []);
@@ -300,12 +372,6 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   /* UI state */
   const [isSearchOpen, setSearchOpen] = useState(false);
   const [receiptOrder, setReceiptOrder] = useState<Order | null>(null);
-
-  /* Staff session */
-  const [isStaff, setIsStaff] = useState(() => {
-    const session = load<{ until: number }>(KEYS.staffSession);
-    return !!session && session.until > Date.now();
-  });
 
   /* ── Catalogue actions ── */
 
@@ -465,7 +531,13 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   /* ── Orders ── */
 
-  const getOrder = useCallback((id: string) => orders.find((o) => o.id.toUpperCase() === id.toUpperCase()), [orders]);
+  const getOrder = useCallback(
+    (id: string) => {
+      const match = (o: Order) => o.id.toUpperCase() === id.toUpperCase();
+      return myOrders.find(match) ?? orders.find(match);
+    },
+    [myOrders, orders],
+  );
 
   const placeOrder = useCallback(
     (input: PlaceOrderInput): Order | null => {
@@ -484,7 +556,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       const totals = calcTotals(cartSubtotal, input.fulfilment, coupon);
       const now = new Date().toISOString();
       const order: Order = {
-        id: newOrderId(ordersRef.current),
+        id: newOrderId(myOrdersRef.current),
         createdAt: now,
         customer: input.customer,
         fulfilment: input.fulfilment,
@@ -510,9 +582,8 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         note: input.note?.trim() || undefined,
       };
 
-      const updatedProducts = adjustStock(productsRef.current, order.items, -1);
-      persistProducts(updatedProducts);
-      persistOrders([order, ...ordersRef.current]);
+      persistProducts(adjustStock(productsRef.current, order.items, -1));
+      persistMyOrders([order, ...myOrdersRef.current]);
       setCartLines([]);
       setCouponCode(null);
 
@@ -520,24 +591,16 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       setSavedCustomer(details);
       save(KEYS.customer, details);
 
-      // Save order to Supabase
-      insertOrderDb(order).then((ok) => {
+      // Save the order to Supabase; the server also takes the pieces out of stock
+      placeOrderDb(order).then((ok) => {
         if (!ok) {
           console.warn('Supabase order insert failed, order saved locally.');
         }
       });
 
-      // Update stocks in Supabase for each ordered item
-      for (const item of order.items) {
-        const prod = updatedProducts.find((p) => p.id === item.productId);
-        if (prod) {
-          updateProductStockDb(prod.id, prod.sizes);
-        }
-      }
-
       return order;
     },
-    [cart, cartSubtotal, coupon, persistOrders, persistProducts, savedCustomer, showToast],
+    [cart, cartSubtotal, coupon, persistMyOrders, persistProducts, savedCustomer, showToast],
   );
 
   const setOrderStatus = useCallback(
@@ -593,38 +656,20 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   /* ── Staff ── */
 
-  const staffLogin = useCallback((password: string) => {
-    const attempts = load<{ count: number; until: number }>(KEYS.loginAttempts) ?? { count: 0, until: 0 };
-    if (attempts.until > Date.now()) {
-      return `Too many wrong tries. Please wait ${Math.ceil((attempts.until - Date.now()) / 1000)} seconds.`;
-    }
-    const expected = load<string>(KEYS.staffPassword) ?? STORE_CONFIG.staffPasswordHash;
-    if (sha256(password) === expected) {
-      save(KEYS.staffSession, { until: Date.now() + STAFF_SESSION_DAYS * 86_400_000 });
-      remove(KEYS.loginAttempts);
-      setIsStaff(true);
-      return null;
-    }
-    const count = attempts.count + 1;
-    if (count >= MAX_LOGIN_TRIES) {
-      save(KEYS.loginAttempts, { count: 0, until: Date.now() + LOCKOUT_MS });
-      return 'Too many wrong tries. Please wait a minute and try again.';
-    }
-    save(KEYS.loginAttempts, { count, until: 0 });
-    return 'Wrong password. Please try again.';
+  // Supabase refuses to send a code to any email that isn't on the staff list
+  const requestStaffCode = useCallback(async (email: string) => {
+    const { error } = await supabase.auth.signInWithOtp({ email: email.trim().toLowerCase() });
+    return error ? authErrorMessage(error) : null;
   }, []);
 
-  const staffLogout = useCallback(() => {
-    remove(KEYS.staffSession);
-    setIsStaff(false);
+  const verifyStaffCode = useCallback(async (email: string, code: string) => {
+    const { error } = await supabase.auth.verifyOtp({ email: email.trim().toLowerCase(), token: code.trim(), type: 'email' });
+    return error ? authErrorMessage(error) : null;
   }, []);
 
-  const changeStaffPassword = useCallback((current: string, next: string) => {
-    const expected = load<string>(KEYS.staffPassword) ?? STORE_CONFIG.staffPasswordHash;
-    if (sha256(current) !== expected) return 'Your current password is not correct.';
-    if (next.trim().length < 6) return 'The new password needs at least 6 characters.';
-    if (!save(KEYS.staffPassword, sha256(next))) return 'Could not save.';
-    return null;
+  // 'local' ends this device's login only, not the same staff member's other devices
+  const staffLogout = useCallback(async () => {
+    await supabase.auth.signOut({ scope: 'local' });
   }, []);
 
   const restoreBackup = useCallback(
@@ -673,6 +718,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     isSaved,
     toggleSaved,
     orders,
+    myOrders,
     getOrder,
     placeOrder,
     setOrderStatus,
@@ -680,9 +726,11 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     deleteOrder,
     savedCustomer,
     isStaff,
-    staffLogin,
+    staffLoading,
+    staffEmail,
+    requestStaffCode,
+    verifyStaffCode,
     staffLogout,
-    changeStaffPassword,
     restoreBackup,
     backendStatus,
     isBackendConnected,

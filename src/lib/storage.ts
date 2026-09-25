@@ -4,11 +4,14 @@
  */
 const PREFIX = 'by:v3:';
 
+// Keys no longer used: the old password login, and the order cache that held every shop order
+const RETIRED_KEYS = ['orders', 'staff-session', 'staff-password', 'login-attempts'].map((k) => PREFIX + k);
+
 // Clear data saved by older versions (fresh start for every browser)
 try {
   for (let i = localStorage.length - 1; i >= 0; i--) {
     const k = localStorage.key(i);
-    if (k && (k.startsWith('by:v2:') || k.startsWith('brandyuwa_'))) localStorage.removeItem(k);
+    if (k && (k.startsWith('by:v2:') || k.startsWith('brandyuwa_') || RETIRED_KEYS.includes(k))) localStorage.removeItem(k);
   }
 } catch {
   /* storage unavailable */
@@ -16,15 +19,15 @@ try {
 
 export const KEYS = {
   products: 'products',
-  orders: 'orders',
+  /** Orders placed on this device */
+  myOrders: 'my-orders',
+  /** Every shop order, cached for signed-in staff only */
+  staffOrders: 'staff-orders',
   cart: 'cart',
   saved: 'saved',
   customer: 'customer',
   coupon: 'coupon',
   recentSearches: 'recent-searches',
-  staffSession: 'staff-session',
-  staffPassword: 'staff-password',
-  loginAttempts: 'login-attempts',
 } as const;
 
 export type StorageKey = (typeof KEYS)[keyof typeof KEYS];

@@ -32,16 +32,41 @@ Payment is cash on delivery, pay at the shop (for pickup), or UPI if `payments.u
 
 ## Staff area
 
-Open `/#/admin` (or tap **Staff login** in the footer).
+Open `/#/admin` (or tap **Staff login** in the footer), enter a staff email and type in the
+6-digit code Supabase emails to it (valid for 10 minutes).
 
-- Default password: **`brandyuwa2026`**. Change it straight away in **Settings**.
 - **Products**: add or edit a product with photos from the phone camera, a price, sizes and stock.
 - **Stock**: tap + / − when stock arrives or sells in the shop.
 - **Orders**: move orders through Packed → Shipped/Ready → Delivered, and message the customer.
-- **Settings**: change the password, download or restore a backup.
+- **Settings**: see who is logged in, download or restore a backup.
 
-If the password is forgotten, clearing the site's data in the browser resets it to the
-default (this also clears products saved in that browser — restore them from a backup).
+### Who can log in
+
+Staff access is checked by Supabase, not the browser
+(`supabase/migrations/20260925120000_staff_email_otp.sql`):
+
+- Only emails in the `public.staff_members` table can log in. A Supabase Auth hook refuses to
+  create an account (or send a code) for any other email.
+- Database policies allow changes to products, orders and product photos only for a logged-in
+  staff email. Customers can read published products, place orders through `place_order()`,
+  and look up their own orders by order number + phone through `get_my_orders()`.
+
+To add or remove staff, edit the table in the Supabase dashboard (Table Editor →
+`staff_members`, emails in lowercase) or run SQL:
+
+```sql
+insert into public.staff_members (email) values ('new.person@gmail.com');
+delete from public.staff_members where email = 'old.person@gmail.com';
+```
+
+Auth settings (code length, expiry, the hook, email templates) live in `supabase/config.toml`
+and are applied with `npx supabase config push`.
+
+**Email sending:** Supabase's built-in sender only mails members of the Supabase team (about 2
+emails an hour), and on the free plan it won't let the login email show a code. Set up a custom
+SMTP sender (Dashboard → Authentication → Emails → SMTP Settings, e.g. Brevo, Resend or a Gmail
+app password), then uncomment the template blocks in `supabase/config.toml` and run
+`npx supabase config push`.
 
 ## Important: what needs a backend
 
@@ -50,8 +75,6 @@ Products, stock and orders are saved **in the browser of the device that made th
 
 - Products the shopkeeper adds are visible only on the shopkeeper's device, not to customers
   on other phones.
-- The staff password check runs in the browser, so it keeps casual visitors out but is not
-  real security.
 
 Before going live with real products, connect a backend (for example Supabase or Firebase)
 for products, orders, photo uploads and staff login. All saving goes through

@@ -213,6 +213,39 @@ export async function fetchOrdersFromDb(): Promise<Order[] | null> {
   }
 }
 
+/** Orders placed on this device, looked up by order number + phone (customers can't read the orders table) */
+export async function fetchMyOrdersFromDb(orders: Order[]): Promise<Order[] | null> {
+  if (orders.length === 0) return [];
+  try {
+    const lookups = orders.slice(0, 50).map((o) => ({ id: o.id, phone: o.customer.phone }));
+    const { data, error } = await supabase.rpc('get_my_orders', { p_lookups: lookups });
+    if (error) {
+      console.warn('Supabase getMyOrders error:', error);
+      return null;
+    }
+    return (data as DbOrderRow[]).map(toOrder);
+  } catch (err) {
+    console.warn('Supabase getMyOrders exception:', err);
+    return null;
+  }
+}
+
+/** Saves a customer's order and reduces stock on the server in one step */
+export async function placeOrderDb(order: Order): Promise<boolean> {
+  try {
+    const { error } = await supabase.rpc('place_order', { p_order: toOrderRow(order) });
+    if (error) {
+      console.error('Supabase placeOrder error:', error);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.error('Supabase placeOrder exception:', err);
+    return false;
+  }
+}
+
+/** Staff only: used when restoring a backup */
 export async function insertOrderDb(order: Order): Promise<boolean> {
   try {
     const row = toOrderRow(order);
@@ -276,6 +309,23 @@ export async function deleteOrderDb(id: string): Promise<boolean> {
   } catch (err) {
     console.error('Supabase deleteOrder exception:', err);
     return false;
+  }
+}
+
+/* ───────────────────────── Staff ───────────────────────── */
+
+/** Asks the database whether the signed-in email is on the staff list. null when the check could not run. */
+export async function checkIsStaff(): Promise<boolean | null> {
+  try {
+    const { data, error } = await supabase.rpc('is_staff');
+    if (error) {
+      console.warn('Supabase isStaff error:', error);
+      return null;
+    }
+    return data === true;
+  } catch (err) {
+    console.warn('Supabase isStaff exception:', err);
+    return null;
   }
 }
 

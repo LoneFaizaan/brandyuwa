@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react';
+import { LoaderCircle } from 'lucide-react';
 import { StoreProvider, useStore } from './context/StoreContext';
 import { matchPath, RouterProvider, useRouter } from './lib/router';
 
@@ -95,12 +96,18 @@ function adminRoute(path: string): { view: React.ReactNode; hideTabs?: boolean }
 
 const AppContent: React.FC = () => {
   const { path } = useRouter();
-  const { isStaff } = useStore();
+  const { isStaff, staffLoading } = useStore();
   const isAdmin = path === '/admin' || path.startsWith('/admin/');
 
   let page: React.ReactNode;
   if (isAdmin) {
-    if (!isStaff) {
+    if (staffLoading) {
+      page = (
+        <div className="flex min-h-[100dvh] items-center justify-center bg-soft text-muted" role="status" aria-label="Checking login">
+          <LoaderCircle size={28} className="animate-spin" />
+        </div>
+      );
+    } else if (!isStaff) {
       page = <AdminLoginView />;
     } else {
       const route = adminRoute(path);

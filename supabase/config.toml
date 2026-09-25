@@ -1,0 +1,25 @@
+# Settings pushed to the hosted project with `npx supabase config push`.
+# Only what is declared here is changed; everything else is left as set in the dashboard.
+project_id = "brandyuwa"
+
+[auth.email]
+# Staff sign in with a 6-digit code sent by email, valid for 10 minutes
+otp_length = 6
+otp_expiry = 600
+
+# Refuses to create an account for any email not in public.staff_members
+[auth.hook.before_user_created]
+enabled = true
+uri = "pg-functions://postgres/public/hook_before_user_created"
+
+# The login emails must contain the code ({{ .Token }}), not a link. Supabase only allows
+# editing email templates once a custom SMTP sender is set up (Dashboard → Authentication →
+# Emails → SMTP Settings). After that, uncomment these two blocks and run `npx supabase config push`.
+#
+# [auth.email.template.magic_link]
+# subject = "Your Brand Yuva staff login code"
+# content_path = "./supabase/templates/staff-login-code.html"
+#
+# [auth.email.template.confirmation]
+# subject = "Your Brand Yuva staff login code"
+# content_path = "./supabase/templates/staff-login-code.html"

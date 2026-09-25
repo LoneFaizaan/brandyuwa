@@ -88,12 +88,6 @@ export const STORE_CONFIG = {
 
   /** Products with this many units or fewer (in total) are flagged as "running low" */
   lowStockAt: 5,
-
-  /**
-   * SHA-256 hash of the default staff password ("brandyuwa2026").
-   * The shopkeeper can change the password from Staff area → Settings.
-   */
-  staffPasswordHash: '2a97e415a812d38175a076aec96f765bf7b5184adec2ec95e35884609a9ba297',
 };
 
 export const phoneDisplay = (digits: string) =>
