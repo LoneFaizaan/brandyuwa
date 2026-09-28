@@ -30,7 +30,7 @@ export const Header: React.FC = () => {
     <>
       <div className="bg-ink px-4 py-2 text-center text-[13px] font-medium text-white">
         Free delivery above {formatPrice(STORE_CONFIG.delivery.freeAbove)}
-        {STORE_CONFIG.payments.cashOnDelivery && ' · Cash on delivery'}
+        {' · Pay by UPI'}
       </div>
       <header className="sticky top-0 z-40 border-b border-line bg-canvas/95 backdrop-blur-md">
         <div className="page flex h-14 items-center justify-between gap-3">

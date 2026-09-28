@@ -71,13 +71,13 @@ export const STORE_CONFIG = {
   /** Days after delivery within which a size exchange is accepted */
   exchangeDays: 7,
 
+  /** No cash on delivery: delivery orders are paid by UPI, pickup orders by UPI or at the shop. */
   payments: {
-    cashOnDelivery: true,
     /**
-     * Your UPI ID, e.g. 'brandyuwa@okaxis'. Leave empty to hide UPI at checkout.
-     * When set, customers get a "Pay by UPI" button after ordering.
+     * UPI ID customers pay to. After ordering they get a QR code and a "Pay with UPI app"
+     * button for the exact amount. If emptied, they're told you'll send UPI details on WhatsApp.
      */
-    upiId: '',
+    upiId: 'byuva1@ybl',
   },
 
   /** Add discount codes here, e.g. { code: 'EID10', percentOff: 10, minOrder: 999 } */

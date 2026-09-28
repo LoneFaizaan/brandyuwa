@@ -391,15 +391,20 @@ export const CheckoutView: React.FC = () => {
   );
 };
 
+// No cash on delivery: delivery orders are paid by UPI (QR code after ordering)
 function getPaymentOptions(fulfilment: Fulfilment) {
-  const { cashOnDelivery, upiId } = STORE_CONFIG.payments;
-  const options: { value: PaymentMethod; title: string; detail: string }[] = [];
+  const options: { value: PaymentMethod; title: string; detail: string }[] = [
+    {
+      value: 'upi',
+      title: 'Pay by UPI',
+      detail: STORE_CONFIG.payments.upiId
+        ? 'Scan a QR code or use GPay, PhonePe, Paytm after ordering'
+        : "We'll send UPI details on WhatsApp",
+    },
+  ];
   if (fulfilment === 'pickup') {
     options.push({ value: 'store', title: 'Pay at the shop', detail: 'Cash or UPI when you collect' });
-  } else if (cashOnDelivery || !upiId) {
-    options.push({ value: 'cod', title: 'Cash on delivery', detail: 'Pay by cash or UPI when it arrives' });
   }
-  if (upiId) options.push({ value: 'upi', title: 'Pay now by UPI', detail: 'GPay, PhonePe, Paytm or any UPI app' });
   return options;
 }
 

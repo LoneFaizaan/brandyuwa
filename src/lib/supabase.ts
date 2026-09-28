@@ -100,7 +100,7 @@ export function toOrder(row: DbOrderRow): Order {
     couponCode: row.coupon_code || undefined,
     deliveryFee: Number(row.delivery_fee) || 0,
     total: Number(row.total) || 0,
-    payment: (row.payment as any) || 'cod',
+    payment: (row.payment as any) || 'upi',
     paid: Boolean(row.paid),
     status: (row.status as OrderStatus) || 'new',
     history: Array.isArray(row.history) ? row.history : [{ status: 'new', at: row.created_at }],

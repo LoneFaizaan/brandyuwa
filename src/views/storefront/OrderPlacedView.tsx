@@ -1,17 +1,18 @@
 import React from 'react';
-import { CircleCheck, Copy } from 'lucide-react';
+import { CircleCheck } from 'lucide-react';
 import { useStore } from '../../context/StoreContext';
 import { Link } from '../../lib/router';
 import { usePageTitle } from '../../lib/hooks';
 import { formatPrice, paymentLabel, plural } from '../../lib/format';
-import { orderWhatsAppLink, upiPayLink } from '../../lib/orderMessages';
+import { orderWhatsAppLink } from '../../lib/orderMessages';
 import { STORE_CONFIG } from '../../data/storeConfig';
 import { WhatsAppIcon } from '../../components/common/SocialIcons';
 import { ProductImage } from '../../components/common/ProductImage';
+import { UpiPaymentCard } from '../../components/storefront/UpiPaymentCard';
 import { NotFoundView } from './NotFoundView';
 
 export const OrderPlacedView: React.FC<{ orderId: string }> = ({ orderId }) => {
-  const { getOrder, showToast } = useStore();
+  const { getOrder } = useStore();
   const order = getOrder(orderId);
   usePageTitle(order ? 'Order placed' : 'Order not found');
 
@@ -20,16 +21,6 @@ export const OrderPlacedView: React.FC<{ orderId: string }> = ({ orderId }) => {
   }
 
   const itemCount = order.items.reduce((s, i) => s + i.quantity, 0);
-  const upi = order.payment === 'upi' && STORE_CONFIG.payments.upiId;
-
-  const copyUpi = async () => {
-    try {
-      await navigator.clipboard.writeText(STORE_CONFIG.payments.upiId);
-      showToast('UPI ID copied');
-    } catch {
-      showToast('Could not copy', 'error');
-    }
-  };
 
   return (
     <div className="page max-w-lg animate-fade-in py-8">
@@ -53,17 +44,9 @@ export const OrderPlacedView: React.FC<{ orderId: string }> = ({ orderId }) => {
         </a>
       </div>
 
-      {upi && (
-        <div className="card mt-4 p-5">
-          <p className="text-[15px] font-semibold">Pay {formatPrice(order.total)} by UPI</p>
-          <p className="mt-1 text-sm text-muted">Opens your UPI app with the amount filled in. You can also pay to our UPI ID.</p>
-          <a href={upiPayLink(order)} className="btn btn-primary mt-4 w-full">
-            Pay with UPI app
-          </a>
-          <button type="button" onClick={copyUpi} className="mt-3 inline-flex items-center gap-1.5 text-sm font-medium text-muted hover:text-ink">
-            <Copy size={15} />
-            {STORE_CONFIG.payments.upiId}
-          </button>
+      {order.payment === 'upi' && !order.paid && (
+        <div className="mt-4">
+          <UpiPaymentCard order={order} />
         </div>
       )}
 

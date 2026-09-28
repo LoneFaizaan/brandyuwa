@@ -9,6 +9,7 @@ import { STORE_CONFIG } from '../../data/storeConfig';
 import { ProductImage } from '../../components/common/ProductImage';
 import { WhatsAppIcon } from '../../components/common/SocialIcons';
 import { OrderProgress, StatusBadge } from '../../components/storefront/OrderProgress';
+import { UpiPaymentCard } from '../../components/storefront/UpiPaymentCard';
 import { NotFoundView } from './NotFoundView';
 
 export const OrderDetailView: React.FC<{ orderId: string }> = ({ orderId }) => {
@@ -44,6 +45,12 @@ export const OrderDetailView: React.FC<{ orderId: string }> = ({ orderId }) => {
           </p>
         )}
       </section>
+
+      {order.payment === 'upi' && !order.paid && order.status !== 'cancelled' && (
+        <div className="mt-4">
+          <UpiPaymentCard order={order} />
+        </div>
+      )}
 
       <section className="card mt-4 p-5">
         <h2 className="text-[15px] font-semibold">Items</h2>

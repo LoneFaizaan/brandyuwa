@@ -47,7 +47,17 @@ export function productQuestionLink(product: Product, size?: string, color?: str
   );
 }
 
-/** Opens the customer's UPI app with the amount filled in (Android / iOS with UPI apps). */
+/** The customer tells the shop on WhatsApp that they paid, so the payment can be matched to the order. */
+export function paymentWhatsAppLink(order: Order, reference?: string) {
+  const lines = [`Hello ${STORE_CONFIG.name}, I have paid ${formatPrice(order.total)} by UPI for order ${order.id}.`];
+  if (STORE_CONFIG.payments.upiId) lines.push(`Paid to: ${STORE_CONFIG.payments.upiId}`);
+  if (reference?.trim()) lines.push(`UPI reference (UTR): ${reference.trim()}`);
+  lines.push(`Name: ${order.customer.name}`);
+  lines.push('I will attach the payment screenshot.');
+  return whatsappLink(lines.join('\n'));
+}
+
+/** Opens the customer's UPI app with the amount filled in (Android / iOS with UPI apps). Also the QR code content. */
 export function upiPayLink(order: Order) {
   const params = new URLSearchParams({
     pa: STORE_CONFIG.payments.upiId,

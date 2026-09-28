@@ -50,8 +50,9 @@ export const statusLabel = (status: OrderStatus, fulfilment: Fulfilment) => {
   }
 };
 
-export const paymentLabel = (payment: PaymentMethod) =>
-  payment === 'cod' ? 'Cash on delivery' : payment === 'upi' ? 'UPI' : 'Pay at store';
+// Older orders may still say 'cod'
+export const paymentLabel = (payment: PaymentMethod | string) =>
+  payment === 'upi' ? 'UPI' : payment === 'store' ? 'Pay at store' : 'Cash on delivery';
 
 /** Digits only, without a leading +91 / 0 */
 export const cleanPhone = (value: string) => {

@@ -618,7 +618,8 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         }
       }
 
-      const settlesOnHandover = order.payment === 'cod' || order.payment === 'store';
+      // Anything but UPI (pay at the shop, or cash on delivery on older orders) is paid when handed over
+      const settlesOnHandover = order.payment !== 'upi';
       const willBePaid = status === 'delivered' && settlesOnHandover ? true : order.paid;
       const nextHistory = [...order.history, { status, at: new Date().toISOString() }];
 

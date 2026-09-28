@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { ArrowRight, Banknote, RotateCcw, Store, Truck } from 'lucide-react';
+import { ArrowRight, QrCode, RotateCcw, Store, Truck } from 'lucide-react';
 import { useStore } from '../../context/StoreContext';
 import { Link } from '../../lib/router';
 import { isStoreOpenNow, usePageTitle } from '../../lib/hooks';
@@ -35,7 +35,7 @@ export const HomeView: React.FC = () => {
 
   const promises = [
     { icon: Truck, title: 'Free delivery', text: `On orders above ${formatPrice(STORE_CONFIG.delivery.freeAbove)}` },
-    STORE_CONFIG.payments.cashOnDelivery && { icon: Banknote, title: 'Cash on delivery', text: 'Pay when it arrives' },
+    { icon: QrCode, title: 'Pay by UPI', text: 'Scan the QR after ordering' },
     { icon: RotateCcw, title: `${STORE_CONFIG.exchangeDays}-day exchange`, text: 'Wrong size? Swap it' },
     STORE_CONFIG.delivery.pickup && { icon: Store, title: 'Free pickup', text: `From our shop in ${STORE_CONFIG.address.city}` },
   ].filter(Boolean) as { icon: typeof Truck; title: string; text: string }[];

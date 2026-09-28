@@ -64,7 +64,7 @@ export interface CustomerDetails {
 }
 
 export type Fulfilment = 'delivery' | 'pickup';
-export type PaymentMethod = 'cod' | 'upi' | 'store';
+export type PaymentMethod = 'upi' | 'store';
 export type OrderStatus = 'new' | 'packed' | 'shipped' | 'delivered' | 'cancelled';
 
 export interface OrderItem {

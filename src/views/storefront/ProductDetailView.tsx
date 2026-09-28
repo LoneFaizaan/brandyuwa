@@ -1,5 +1,5 @@
 import React, { useMemo, useRef, useState } from 'react';
-import { Banknote, ChevronRight, EyeOff, Heart, RotateCcw, Ruler, Share2, Store, Truck } from 'lucide-react';
+import { ChevronRight, EyeOff, Heart, QrCode, RotateCcw, Ruler, Share2, Store, Truck } from 'lucide-react';
 import { useStore } from '../../context/StoreContext';
 import { Link, useRouter } from '../../lib/router';
 import { usePageTitle } from '../../lib/hooks';
@@ -352,12 +352,10 @@ export const ProductDetailView: React.FC<{ productId: string }> = ({ productId }
                   <span>Free pickup from our shop in {STORE_CONFIG.address.locality}, {STORE_CONFIG.address.city}.</span>
                 </li>
               )}
-              {STORE_CONFIG.payments.cashOnDelivery && (
-                <li className="flex gap-3">
-                  <Banknote size={20} className="shrink-0 text-muted" />
-                  <span>Cash on delivery available.</span>
-                </li>
-              )}
+              <li className="flex gap-3">
+                <QrCode size={20} className="shrink-0 text-muted" />
+                <span>Pay by UPI: scan the QR code after ordering, or use GPay, PhonePe or Paytm.</span>
+              </li>
               <li className="flex gap-3">
                 <RotateCcw size={20} className="shrink-0 text-muted" />
                 <span>
