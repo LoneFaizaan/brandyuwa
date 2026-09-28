@@ -94,6 +94,8 @@ export interface Order {
   status: OrderStatus;
   history: { status: OrderStatus; at: string }[];
   note?: string;
+  /** UPI reference (UTR / transaction ID) the customer entered after paying at checkout */
+  paymentRef?: string;
 }
 
 export interface Coupon {

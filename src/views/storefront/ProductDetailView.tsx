@@ -354,7 +354,7 @@ export const ProductDetailView: React.FC<{ productId: string }> = ({ productId }
               )}
               <li className="flex gap-3">
                 <QrCode size={20} className="shrink-0 text-muted" />
-                <span>Pay by UPI: scan the QR code after ordering, or use GPay, PhonePe or Paytm.</span>
+                <span>Pay now by UPI at checkout (GPay, PhonePe, Paytm), or pay at the shop when you pick up.</span>
               </li>
               <li className="flex gap-3">
                 <RotateCcw size={20} className="shrink-0 text-muted" />

@@ -12,8 +12,9 @@ import { INDIAN_STATES } from '../../data/indianStates';
 import { EmptyState } from '../../components/common/EmptyState';
 import { ProductImage } from '../../components/common/ProductImage';
 import { WhatsAppIcon } from '../../components/common/SocialIcons';
+import { UpiPaymentCard, isValidPaymentRef } from '../../components/storefront/UpiPaymentCard';
 
-type Field = 'name' | 'phone' | 'line1' | 'city' | 'pincode' | 'state';
+type Field = 'name' | 'phone' | 'line1' | 'city' | 'pincode' | 'state' | 'utr';
 
 export const CheckoutView: React.FC = () => {
   usePageTitle('Checkout');
@@ -31,6 +32,7 @@ export const CheckoutView: React.FC = () => {
   const [pincode, setPincode] = useState(saved?.pincode ?? '');
   const [state, setState] = useState(saved?.state ?? STORE_CONFIG.address.state);
   const [note, setNote] = useState('');
+  const [paymentRef, setPaymentRef] = useState('');
   const [errors, setErrors] = useState<Partial<Record<Field, string>>>({});
 
   const paymentOptions = getPaymentOptions(fulfilment);
@@ -67,6 +69,9 @@ export const CheckoutView: React.FC = () => {
       if (!/^\d{6}$/.test(pincode)) e.pincode = 'Enter the 6-digit PIN code';
       if (!state) e.state = 'Please choose your state';
     }
+    if (payment === 'upi' && !isValidPaymentRef(paymentRef)) {
+      e.utr = paymentRef ? 'This doesn\'t look like a UPI reference number. Check it in your UPI app.' : 'Pay first, then enter the UPI reference number';
+    }
     return e;
   };
 
@@ -74,7 +79,7 @@ export const CheckoutView: React.FC = () => {
     ev.preventDefault();
     const found = validate();
     setErrors(found);
-    const first = (['name', 'phone', 'line1', 'city', 'pincode', 'state'] as Field[]).find((f) => found[f]);
+    const first = (['name', 'phone', 'line1', 'city', 'pincode', 'state', 'utr'] as Field[]).find((f) => found[f]);
     if (first) {
       const el = document.getElementById(`checkout-${first}`);
       el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -91,6 +96,7 @@ export const CheckoutView: React.FC = () => {
           ? { line1: line1.trim(), landmark: landmark.trim() || undefined, city: city.trim(), state, pincode }
           : undefined,
       payment,
+      paymentRef,
       note,
     });
     if (!order) {
@@ -284,7 +290,7 @@ export const CheckoutView: React.FC = () => {
               </Section>
             )}
 
-            <Section title="Payment">
+            <Section title="How would you like to pay?">
               <div className="grid gap-3">
                 {paymentOptions.map((o) => (
                   <ChoiceCard
@@ -296,6 +302,17 @@ export const CheckoutView: React.FC = () => {
                     detail={o.detail}
                   />
                 ))}
+                {payment === 'upi' && (
+                  <UpiPaymentCard
+                    amount={totals.total}
+                    reference={paymentRef}
+                    onReferenceChange={(v) => {
+                      setPaymentRef(v);
+                      clearError('utr');
+                    }}
+                    error={errors.utr}
+                  />
+                )}
               </div>
             </Section>
 
@@ -391,16 +408,10 @@ export const CheckoutView: React.FC = () => {
   );
 };
 
-// No cash on delivery: delivery orders are paid by UPI (QR code after ordering)
+// No cash on delivery: pay now by UPI (QR code at checkout), or at the shop for pickup
 function getPaymentOptions(fulfilment: Fulfilment) {
   const options: { value: PaymentMethod; title: string; detail: string }[] = [
-    {
-      value: 'upi',
-      title: 'Pay by UPI',
-      detail: STORE_CONFIG.payments.upiId
-        ? 'Scan a QR code or use GPay, PhonePe, Paytm after ordering'
-        : "We'll send UPI details on WhatsApp",
-    },
+    { value: 'upi', title: 'Pay now by UPI', detail: 'Scan the QR code with GPay, PhonePe, Paytm or any UPI app' },
   ];
   if (fulfilment === 'pickup') {
     options.push({ value: 'store', title: 'Pay at the shop', detail: 'Cash or UPI when you collect' });

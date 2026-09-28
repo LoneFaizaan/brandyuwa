@@ -22,7 +22,11 @@ export function orderWhatsAppLink(order: Order) {
     lines.push(`Delivery: ${order.deliveryFee === 0 ? 'Free' : formatPrice(order.deliveryFee)}`);
   }
   lines.push(`Total: ${formatPrice(order.total)}`);
-  lines.push(`Payment: ${paymentLabel(order.payment)}`);
+  lines.push(
+    order.payment === 'upi' && order.paymentRef
+      ? `Payment: Paid by UPI${STORE_CONFIG.payments.upiId ? ` to ${STORE_CONFIG.payments.upiId}` : ''}, ref no. ${order.paymentRef}`
+      : `Payment: ${paymentLabel(order.payment)}`,
+  );
   lines.push('');
   lines.push(`Name: ${order.customer.name}`);
   lines.push(`Phone: ${order.customer.phone}`);
@@ -47,24 +51,14 @@ export function productQuestionLink(product: Product, size?: string, color?: str
   );
 }
 
-/** The customer tells the shop on WhatsApp that they paid, so the payment can be matched to the order. */
-export function paymentWhatsAppLink(order: Order, reference?: string) {
-  const lines = [`Hello ${STORE_CONFIG.name}, I have paid ${formatPrice(order.total)} by UPI for order ${order.id}.`];
-  if (STORE_CONFIG.payments.upiId) lines.push(`Paid to: ${STORE_CONFIG.payments.upiId}`);
-  if (reference?.trim()) lines.push(`UPI reference (UTR): ${reference.trim()}`);
-  lines.push(`Name: ${order.customer.name}`);
-  lines.push('I will attach the payment screenshot.');
-  return whatsappLink(lines.join('\n'));
-}
-
 /** Opens the customer's UPI app with the amount filled in (Android / iOS with UPI apps). Also the QR code content. */
-export function upiPayLink(order: Order) {
+export function upiPayLink(amount: number, note = `${STORE_CONFIG.name} order`) {
   const params = new URLSearchParams({
     pa: STORE_CONFIG.payments.upiId,
     pn: STORE_CONFIG.name,
-    am: order.total.toFixed(2),
+    am: amount.toFixed(2),
     cu: 'INR',
-    tn: `Order ${order.id}`,
+    tn: note,
   });
   return `upi://pay?${params.toString()}`;
 }

@@ -8,7 +8,6 @@ import { orderWhatsAppLink } from '../../lib/orderMessages';
 import { STORE_CONFIG } from '../../data/storeConfig';
 import { WhatsAppIcon } from '../../components/common/SocialIcons';
 import { ProductImage } from '../../components/common/ProductImage';
-import { UpiPaymentCard } from '../../components/storefront/UpiPaymentCard';
 import { NotFoundView } from './NotFoundView';
 
 export const OrderPlacedView: React.FC<{ orderId: string }> = ({ orderId }) => {
@@ -44,11 +43,6 @@ export const OrderPlacedView: React.FC<{ orderId: string }> = ({ orderId }) => {
         </a>
       </div>
 
-      {order.payment === 'upi' && !order.paid && (
-        <div className="mt-4">
-          <UpiPaymentCard order={order} />
-        </div>
-      )}
 
       <div className="card mt-4 p-5">
         <div className="flex items-center justify-between">
@@ -73,7 +67,8 @@ export const OrderPlacedView: React.FC<{ orderId: string }> = ({ orderId }) => {
           {order.fulfilment === 'pickup'
             ? `Pickup from our shop in ${STORE_CONFIG.address.locality}. We'll message you when it's ready.`
             : `Delivery to ${order.address?.city}, usually in ${STORE_CONFIG.delivery.estimate}.`}{' '}
-          Payment: {paymentLabel(order.payment)}.
+          Payment: {paymentLabel(order.payment)}
+          {order.paymentRef ? `, ref no. ${order.paymentRef}. We'll confirm it once we see it in our account.` : '.'}
         </p>
       </div>
 

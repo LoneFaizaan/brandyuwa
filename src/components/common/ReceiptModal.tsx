@@ -63,6 +63,12 @@ export const ReceiptModal: React.FC = () => {
           <dd className="text-right">
             {paymentLabel(order.payment)} · {order.paid ? 'Paid' : 'Not paid yet'}
           </dd>
+          {order.paymentRef && (
+            <>
+              <dt className="text-muted">UPI ref. no.</dt>
+              <dd className="break-all text-right">{order.paymentRef}</dd>
+            </>
+          )}
         </dl>
 
         <div className="rounded-xl bg-soft p-3 text-sm">

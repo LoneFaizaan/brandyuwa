@@ -9,7 +9,6 @@ import { STORE_CONFIG } from '../../data/storeConfig';
 import { ProductImage } from '../../components/common/ProductImage';
 import { WhatsAppIcon } from '../../components/common/SocialIcons';
 import { OrderProgress, StatusBadge } from '../../components/storefront/OrderProgress';
-import { UpiPaymentCard } from '../../components/storefront/UpiPaymentCard';
 import { NotFoundView } from './NotFoundView';
 
 export const OrderDetailView: React.FC<{ orderId: string }> = ({ orderId }) => {
@@ -45,12 +44,6 @@ export const OrderDetailView: React.FC<{ orderId: string }> = ({ orderId }) => {
           </p>
         )}
       </section>
-
-      {order.payment === 'upi' && !order.paid && order.status !== 'cancelled' && (
-        <div className="mt-4">
-          <UpiPaymentCard order={order} />
-        </div>
-      )}
 
       <section className="card mt-4 p-5">
         <h2 className="text-[15px] font-semibold">Items</h2>
@@ -120,8 +113,10 @@ export const OrderDetailView: React.FC<{ orderId: string }> = ({ orderId }) => {
           <h2 className="text-sm font-semibold text-muted">Payment</h2>
           <p className="mt-1">
             {paymentLabel(order.payment)}
-            <br />
-            <span className="text-muted">{order.paid ? 'Paid' : 'Not paid yet'}</span>
+            {order.paymentRef && <span className="block break-all text-sm text-muted">Ref no. {order.paymentRef}</span>}
+            <span className="text-muted">
+              {order.paid ? 'Paid' : order.paymentRef ? 'Payment being checked' : 'Not paid yet'}
+            </span>
           </p>
         </div>
       </section>

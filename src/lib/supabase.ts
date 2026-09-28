@@ -85,6 +85,7 @@ export interface DbOrderRow {
   status: string;
   history: any;
   note?: string | null;
+  payment_ref?: string | null;
 }
 
 export function toOrder(row: DbOrderRow): Order {
@@ -105,6 +106,7 @@ export function toOrder(row: DbOrderRow): Order {
     status: (row.status as OrderStatus) || 'new',
     history: Array.isArray(row.history) ? row.history : [{ status: 'new', at: row.created_at }],
     note: row.note || undefined,
+    paymentRef: row.payment_ref || undefined,
   };
 }
 
@@ -126,6 +128,7 @@ export function toOrderRow(o: Order): DbOrderRow {
     status: o.status,
     history: o.history,
     note: o.note ?? null,
+    payment_ref: o.paymentRef ?? null,
   };
 }
 

@@ -158,6 +158,12 @@ const OrderCard: React.FC<{ order: Order }> = ({ order }) => {
         <p className="text-[15px]">
           <span className="tabular font-bold">{formatPrice(order.total)}</span>
           <span className="text-muted"> · {paymentLabel(order.payment)}</span>
+          {order.paymentRef && (
+            <span className="block break-all text-sm text-muted">
+              Ref no. <span className="tabular font-medium text-ink">{order.paymentRef}</span>
+              {!order.paid && ' · check it in your UPI app, then mark paid'}
+            </span>
+          )}
         </p>
         <span className={`badge ${order.paid ? 'bg-ok-soft text-ok' : 'bg-soft text-muted'}`}>{order.paid ? 'Paid' : 'Not paid'}</span>
       </div>

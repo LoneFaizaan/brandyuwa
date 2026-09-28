@@ -59,9 +59,9 @@ const PAGES: Record<InfoPageName, { title: string; intro?: string; blocks: Block
       },
       {
         heading: 'How do I pay? Is cash on delivery available?',
-        body: `We don't take cash on delivery. Pay by UPI: after you place your order you'll see a QR code for the exact amount${
+        body: `We don't take cash on delivery. Pay now by UPI: at checkout you'll see a QR code for the exact amount${
           payments.upiId ? ` (UPI ID ${payments.upiId})` : ''
-        }. Then send us the payment details on WhatsApp.${delivery.pickup ? ' For shop pickup you can also pay at the shop.' : ''}`,
+        }. After paying, enter the UPI reference number and place your order.${delivery.pickup ? ' For shop pickup you can also pay at the shop.' : ''}`,
       },
       {
         heading: "What if the size doesn't fit?",
@@ -97,7 +97,7 @@ const PAGES: Record<InfoPageName, { title: string; intro?: string; blocks: Block
       ...(delivery.pickup
         ? [{ heading: 'Pick up from the shop', body: `Choose "Pick up from shop" at checkout. It's free, and we'll message you when your order is ready.` }]
         : []),
-      { heading: 'Payment', body: 'Delivery orders are paid by UPI after ordering. There is no cash on delivery.' },
+      { heading: 'Payment', body: 'Delivery orders are paid by UPI at checkout. There is no cash on delivery.' },
       { heading: 'Updates', body: `We keep you updated on WhatsApp at the number you give at checkout.` },
     ],
   },

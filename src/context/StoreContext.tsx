@@ -55,6 +55,8 @@ export interface PlaceOrderInput {
   address?: Address;
   payment: PaymentMethod;
   note?: string;
+  /** Required for UPI: the reference number of the payment made at checkout */
+  paymentRef?: string;
 }
 
 interface StoreContextValue {
@@ -580,6 +582,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         status: 'new',
         history: [{ status: 'new', at: now }],
         note: input.note?.trim() || undefined,
+        paymentRef: input.payment === 'upi' ? input.paymentRef?.trim().toUpperCase() : undefined,
       };
 
       persistProducts(adjustStock(productsRef.current, order.items, -1));
